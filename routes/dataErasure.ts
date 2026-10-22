@@ -16,6 +16,8 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
+import { CardModel } from '../models/card'
+import { AddressModel } from '../models/address'
 
 const entities = new Entities()
 
@@ -84,6 +86,31 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
         UserId: loggedInUser.data.id,
         deletionRequested: true
       })
+
+      // GDPR Art.17: erase / anonymise personal data, do not just record the request
+      const uid = loggedInUser.data.id
+      await CardModel.destroy({ where: { UserId: uid } })
+      await AddressModel.update(
+        {
+          fullName: 'ERASED',
+          mobileNum: 1000000,
+          zipCode: 'ERASED',
+          streetAddress: 'ERASED',
+          city: 'ERASED',
+          state: '',
+          country: 'ERASED'
+        },
+        { where: { UserId: uid }, validate: false }) // FK-referenced -> pseudonymise, do not delete
+      await UserModel.update(
+        {
+          email: `erased-${uid}@anonymized.invalid`,
+          username: '',
+          profileImage: '',
+          lastLoginIp: '',
+          isActive: false
+        },
+        { where: { id: uid }, validate: false })
+      await UserModel.destroy({ where: { id: uid } })
 
       res.clearCookie('token')
 

@@ -1,0 +1,28 @@
+name: sac-lab            # fixed project name -> network is always "sac-lab_sec-net"
+
+services:
+  juice-shop:
+    image: bkimminich/juice-shop:v20.2.0   # pinned; or use `build: .` after patching (slow, ~10+ min)
+    container_name: juice-shop-target
+    ports: ["127.0.0.1:3000:3000"]
+    read_only: false                       # Juice Shop writes to ./logs, ./data, ./ftp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [sec-net]
+
+  sonarqube:
+    image: sonarqube:community
+    container_name: sonarqube
+    ports: ["127.0.0.1:9000:9000"]
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonar_data:/opt/sonarqube/data
+    networks: [sec-net]
+
+volumes:
+  sonar_data:
+    external: true
+    name: vuon-nha-lab_sonar_data   # giữ lại dữ liệu SonarQube đã có (mật khẩu admin, lịch sử quét)
+networks:
+  sec-net:

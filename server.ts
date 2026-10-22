@@ -52,6 +52,7 @@ import { SecurityQuestionModel } from './models/securityQuestion'
 
 import logger from './lib/logger'
 import * as utils from './lib/utils'
+import { maskCardNumber } from './lib/cardMasking'
 import * as antiCheat from './lib/antiCheat'
 import * as security from './lib/insecurity'
 import validateConfig from './lib/startup/validateConfig'
@@ -454,7 +455,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/api/PrivacyRequests', security.isAuthorized())
   app.use('/api/PrivacyRequests/:id', security.isAuthorized())
   /* PaymentMethodRequests: Only allowed for authenticated users */
-  app.post('/api/Cards', security.appendUserId())
+  app.post('/api/Cards', security.appendUserId(), maskCardNumber())
   app.get('/api/Cards', security.appendUserId(), utils.asyncHandler(payment.getPaymentMethods()))
   app.put('/api/Cards/:id', security.denyAll())
   app.delete('/api/Cards/:id', security.appendUserId(), utils.asyncHandler(payment.delPaymentMethodById()))
@@ -698,7 +699,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Error Handling */
   app.use(verify.errorHandlingChallenge())
-  app.use(errorhandler())
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    const eventId = utils.randomHexString(12)
+    logger.error(`[${eventId}] ${err?.stack ?? err}`) // full detail stays in the server log
+    // Keep a 4xx/5xx status a route already set (e.g. /ftp sets 403 before next(err)); guide version forced 500
+    const routeStatus = res.statusCode >= 400 ? res.statusCode : undefined
+    res.status(err?.status ?? err?.statusCode ?? routeStatus ?? 500)
+      .json({ status: 'error', message: 'An internal error occurred', eventId })
+  })
 }
 
 // Function called first to ensure that all the i18n files are reloaded successfully before other linked operations.
