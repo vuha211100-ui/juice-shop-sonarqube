@@ -1,28 +1,60 @@
-name: sac-lab            # fixed project name -> network is always "sac-lab_sec-net"
-
+name: juice-app
+# Triển khai Juice Shop với yêu cầu an toàn tối thiểu (đã xử lý F03):
+# - Chỉ reverse proxy được publish cổng, và chỉ trên loopback (127.0.0.1:3102).
+# - Backend nằm trên mạng internal, KHÔNG có cổng host: /metrics và mọi route chỉ tới được qua proxy,
+#   proxy trả 404 cho /metrics và giới hạn tốc độ đăng nhập.
+# - Image backend là hotfix F01/F02 (deploy/Dockerfile.hotfix) trên image gốc ghim digest.
+# Chuẩn bị lần đầu:  npm run build:server  &&  docker volume create juice-report-accesslogs
+# Chạy:              docker compose up -d --build
+# Hệ thống log/database: report/v2/compose.yml (đọc volume accesslogs). SonarQube: report/v3/sonarqube/compose.yml.
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
 services:
-  juice-shop:
-    image: bkimminich/juice-shop:v20.2.0   # pinned; or use `build: .` after patching (slow, ~10+ min)
-    container_name: juice-shop-target
-    ports: ["127.0.0.1:3000:3000"]
-    read_only: false                       # Juice Shop writes to ./logs, ./data, ./ftp
+  proxy:
+    image: nginx@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236
+    entrypoint: ["/bin/sh", "/etc/nginx/lab-start.sh"]
+    user: "101:101"
+    read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    networks: [sec-net]
-
-  sonarqube:
-    image: sonarqube:community
-    container_name: sonarqube
-    ports: ["127.0.0.1:9000:9000"]
-    environment:
-      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    cpus: 0.25
+    pids_limit: 32
+    ports: ["127.0.0.1:3102:8080"]
+    labels: {lab.exposure: edge}          # dịch vụ duy nhất được phép publish cổng (policy/compose.rego)
     volumes:
-      - sonar_data:/opt/sonarqube/data
-    networks: [sec-net]
-
-volumes:
-  sonar_data:
-    external: true
-    name: vuon-nha-lab_sonar_data   # giữ lại dữ liệu SonarQube đã có (mật khẩu admin, lịch sử quét)
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/proxy-start.sh:/etc/nginx/lab-start.sh:ro
+      - accesslogs:/logs
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m,uid=101,gid=101"]
+    networks: [edge, backend]
+    depends_on:
+      juice-shop: {condition: service_healthy}
+    logging: *logging
+  juice-shop:
+    build:
+      context: ./build
+      dockerfile: ../deploy/Dockerfile.hotfix
+    image: juice-shop:hotfix-f01-f02
+    user: "65532:0"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 0.75
+    pids_limit: 256
+    labels: {lab.exposure: internal}      # không có khóa ports: không truy cập trực tiếp từ host
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "require('http').get('http://127.0.0.1:3000/',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    logging: *logging
 networks:
-  sec-net:
+  edge: {}
+  backend: {internal: true}   # không có đường ra ngoài và không publish cổng
+volumes:
+  accesslogs:
+    external: true
+    name: juice-report-accesslogs

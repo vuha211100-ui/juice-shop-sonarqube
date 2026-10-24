@@ -1,0 +1,6 @@
+# Hotfix image: image Juice Shop 20.2.0 gốc (ghim digest) + 2 route đã biên dịch từ mã đã vá F01/F02.
+# Build context là thư mục build/ (sinh bởi `npm run build:server`), nên không phải gửi cả repo vào Docker.
+FROM bkimminich/juice-shop@sha256:8739101ade29358abb5469ee66ae78e582c97ed0a5543a4ad102e5fa5193526b
+COPY routes/login.js routes/basket.js /juice-shop/build/routes/
+# F04: stage cuối phải khai báo rõ user không phải root (image gốc là distroless, UID 65532)
+USER 65532
