@@ -2,17 +2,20 @@ package main
 
 import rego.v1
 
-# Last USER instruction in the final build stage is the runtime user.
-runtime_users := [i | some i, ins in input; ins.Cmd == "user"]
+# F04: chỉ stage CUỐI tạo ra image chạy thật. USER ở stage builder không áp dụng cho stage runtime,
+# nên chỉ xét các lệnh USER thuộc stage có chỉ số lớn nhất (bản cũ lấy USER cuối của cả file -> bỏ lọt).
+final_stage := max([ins.Stage | some ins in input])
 
-last_user := input[max(runtime_users)].Value[0] if count(runtime_users) > 0
+runtime_users := [ins.Value[0] | some ins in input; ins.Stage == final_stage; ins.Cmd == "user"]
+
+last_user := runtime_users[count(runtime_users) - 1] if count(runtime_users) > 0
 
 root_names := {"root", "0"}
 
-# R1 - PCI-DSS 2.2.x / CIS Docker 4.1: a USER instruction must exist
+# R1 - PCI-DSS 2.2.x / CIS Docker 4.1: the final stage must set USER
 deny contains msg if {
 	count(runtime_users) == 0
-	msg := "[PCI-DSS 2.2 / CIS Docker 4.1] Dockerfile has no USER instruction; container will run as root."
+	msg := "[PCI-DSS 2.2 / CIS Docker 4.1] Final build stage has no USER instruction; container will run as root."
 }
 
 # R2 - runtime user must not be root (handles "root", "0", "root:root", "0:0")
