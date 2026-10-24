@@ -1,2 +1,6 @@
 # Handle line endings for .junie directory
 .junie/** text eol=lf
+
+# File triển khai chạy trong container Linux: luôn giữ LF
+deploy/** text eol=lf
+docker-compose.yml text eol=lf
