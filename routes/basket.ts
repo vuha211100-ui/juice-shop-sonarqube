@@ -26,7 +26,8 @@ export function retrieveBasket () {
         return
       }
       // Ràng buộc chủ sở hữu ngay trong truy vấn: giỏ của người khác cho kết quả rỗng giống giỏ không tồn tại.
-      const basket = await BasketModel.findOne({ where: { id, UserId: user.data.id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+      // Semgrep node_nosqli_injection là dương tính giả ở đây: id đã ép số nguyên, UserId lấy từ phiên máy chủ, Sequelize/SQLite không phải NoSQL.
+      const basket = await BasketModel.findOne({ where: { id, UserId: user.data.id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] }) // nosemgrep: rules.ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection
       if (basket === null) {
         res.status(404).json({ status: 'error', message: 'Basket not found' })
         return
