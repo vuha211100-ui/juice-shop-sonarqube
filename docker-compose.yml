@@ -5,8 +5,8 @@ name: juice-app
 #   proxy trả 404 cho /metrics và giới hạn tốc độ đăng nhập.
 # - Image backend là hotfix F01/F02 (deploy/Dockerfile.hotfix) trên image gốc ghim digest.
 # Chuẩn bị lần đầu:  npm run build:server  &&  docker volume create juice-report-accesslogs
-# Chạy:              docker compose up -d --build
-# Hệ thống log/database: report/v2/compose.yml (đọc volume accesslogs). SonarQube: report/v3/sonarqube/compose.yml.
+# Chạy:              docker compose up -d --build   (project name cố định 'juice-app')
+# Demo + báo cáo:    xem report/DEMO.md
 x-logging: &logging
   driver: json-file
   options: {max-size: "10m", max-file: "3"}

@@ -1,6 +1,0 @@
-name: juice-shop-runtime
-title: Juice Shop container runtime baseline
-version: 1.0.0
-supports:
-  - platform-name: ubuntu
-  - platform-family: darwin
