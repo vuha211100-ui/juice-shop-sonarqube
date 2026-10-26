@@ -1,0 +1,53 @@
+# Fixture F03: cấu hình triển khai TRƯỚC khi vá (backend publish 127.0.0.1:3101). Chỉ dùng để kiểm thử policy.
+name: juice-report-hardened
+services:
+  proxy:
+    image: nginx@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236
+    entrypoint: ["/bin/sh", "/etc/nginx/lab-start.sh"]
+    user: "101:101"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 0.25
+    mem_limit: 64m
+    pids_limit: 32
+    ports: ["127.0.0.1:3102:8080"]
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./v2/proxy-start.sh:/etc/nginx/lab-start.sh:ro
+      - accesslogs:/logs
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m,uid=101,gid=101"]
+    depends_on:
+      juice-shop:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  juice-shop:
+    image: bkimminich/juice-shop@sha256:8739101ade29358abb5469ee66ae78e582c97ed0a5543a4ad102e5fa5193526b
+    ports: ["127.0.0.1:3101:3000"]
+    user: "65532:0"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 0.75
+    mem_limit: 768m
+    memswap_limit: 768m
+    pids_limit: 256
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "require('http').get('http://127.0.0.1:3000/',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+volumes:
+  accesslogs:
+    external: true
+    name: juice-report-accesslogs
