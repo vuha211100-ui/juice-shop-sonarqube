@@ -4,9 +4,10 @@ FROM node:22-alpine
 WORKDIR /juice-shop
 COPY . .
 RUN npm install --only=production
-# VI PHẠM 1: không có USER non-root -> chạy bằng root (Least Privilege)
-# VI PHẠM 2: mở cổng SSH 22 và DB 3306 (Attack Surface / RBAC)
+# VI PHẠM 1: nhúng bí mật vào image -> lộ qua `docker history` (Secret-in-Image — luật riêng của nhóm)
+ENV API_TOKEN=supersecret123
+# VI PHẠM 2: không có USER non-root -> chạy bằng root (Least Privilege)
+# VI PHẠM 3: mở cổng SSH 22 và DB 3306 (Attack Surface / RBAC)
 EXPOSE 3000 22 3306
-# VI PHẠM 3: thiếu nhãn provenance OCI (MFA/Provenance — không dùng LABEL mfa="true" tự khai)
-# VI PHẠM 4: thiếu HEALTHCHECK (Observability/Logging)
+# VI PHẠM 4: thiếu nhãn provenance OCI source/revision (Supply-Chain — truy vết nguồn gốc)
 CMD ["npm", "start"]

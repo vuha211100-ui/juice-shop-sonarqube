@@ -10,7 +10,7 @@ good := [
 	{"Stage": 1, "Cmd": "label", "Value": ["org.opencontainers.image.source", "https://github.com/juice-shop/juice-shop", "org.opencontainers.image.revision", "abc"]},
 	{"Stage": 1, "Cmd": "user", "Value": ["65532"]},
 	{"Stage": 1, "Cmd": "expose", "Value": ["3000"]},
-	{"Stage": 1, "Cmd": "healthcheck", "Value": ["CMD", "node", "-e", "..."]},
+	{"Stage": 1, "Cmd": "env", "Value": ["NODE_ENV", "production", "="]},
 ]
 
 test_good_dockerfile_passes if {
@@ -53,11 +53,22 @@ test_forbidden_port_with_proto_denied if {
 }
 
 test_missing_provenance_label_denied if {
-	some m in deny with input as [{"Stage": 0, "Cmd": "user", "Value": ["65532"]}, {"Stage": 0, "Cmd": "healthcheck", "Value": ["CMD", "x"]}, {"Stage": 0, "Cmd": "expose", "Value": ["3000"]}]
+	some m in deny with input as [{"Stage": 0, "Cmd": "user", "Value": ["65532"]}, {"Stage": 0, "Cmd": "expose", "Value": ["3000"]}]
 	contains(m, "org.opencontainers.image.source")
 }
 
 test_add_instruction_denied if {
 	some m in deny with input as array.concat(good, [{"Stage": 1, "Cmd": "add", "Value": ["http://x/y", "/y"]}])
 	contains(m, "use COPY instead of ADD")
+}
+
+# SECRET-IN-IMAGE (cải tiến của nhóm ngoài bản mẫu lab)
+test_secret_env_denied if {
+	some m in deny with input as [{"Stage": 0, "Cmd": "env", "Value": ["API_TOKEN", "abc123", "="]}]
+	contains(m, "SECRET-IN-IMAGE")
+}
+
+test_secret_arg_denied if {
+	some m in deny with input as [{"Stage": 0, "Cmd": "arg", "Value": ["DB_PASSWORD=p@ss"]}]
+	contains(m, "SECRET-IN-IMAGE")
 }

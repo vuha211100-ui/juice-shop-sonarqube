@@ -2,15 +2,15 @@
 # Mỗi luật đặt tại điểm thực thi đúng thay vì các "original check" dễ bị qua mặt:
 #   Least privilege  -> USER ở STAGE CUỐI, UID số, không phải root (thay vì "có USER bất kỳ trong file")
 #   Firewall/RBAC    -> cổng quản trị/DB không được EXPOSE (giảm bề mặt tấn công)
-#   MFA/provenance   -> nhãn OCI source + revision (thay vì LABEL mfa="true" tự khai)
-#   Logging/observ.  -> HEALTHCHECK ở image chạy thật
-#   Supply chain     -> không :latest, không ADD, cảnh báo base image chưa ghim digest
+#   Supply chain     -> provenance khai báo (nhãn OCI source+revision, SLSA L1) + không :latest, không ADD, cảnh báo base chưa ghim digest
+#   Secret hygiene   -> KHÔNG nhúng bí mật (ENV/ARG) vào image (cải tiến của nhóm, ngoài bản mẫu lab)
 #   chạy: conftest test <Dockerfile> -p policy/ --namespace dockerfile
 package dockerfile
 
 import rego.v1
 
-forbidden_ports := {"22", "23", "3306", "5432"}
+# Danh sách cổng quản trị/CSDL — giữ theo Appendix A.1 của lab (SSH, telnet, Docker daemon, MySQL, Postgres, Redis, Mongo).
+forbidden_ports := {"22", "23", "2375", "2376", "3306", "5432", "6379", "27017"}
 
 required_labels := {"org.opencontainers.image.source", "org.opencontainers.image.revision"}
 
@@ -52,28 +52,16 @@ deny contains msg if {
 	msg := sprintf("ATTACK-SURFACE: EXPOSE '%s' covers administrative/database port %s. (CIS Docker 5.8; NIST SP 800-190)", [raw, port_number(raw)])
 }
 
-# PROVENANCE (thay cho MFA label tự khai) -----------------------------------
+# SUPPLY-CHAIN — provenance khai báo (traceability; không thay cho chữ ký/attestation) --
 label_blob := concat(" ", [concat(" ", ins.Value) | some ins in input; ins.Cmd == "label"])
 
 deny contains msg if {
 	some req in required_labels
 	not contains(label_blob, req)
-	msg := sprintf("PROVENANCE: required OCI label '%s' is missing. (OCI image-spec; SLSA Provenance L1; NIST SSDF)", [req])
+	msg := sprintf("SUPPLY-CHAIN: missing provenance label '%s' (declared provenance for traceability). (OCI image-spec; SLSA Provenance L1; NIST SSDF)", [req])
 }
 
-# OBSERVABILITY --------------------------------------------------------------
-has_healthcheck if {
-	some ins in input
-	ins.Cmd == "healthcheck"
-	upper(ins.Value[0]) != "NONE"
-}
-
-deny contains msg if {
-	not has_healthcheck
-	msg := "OBSERVABILITY: no HEALTHCHECK in final stage (distroless images need a shell-less check). (CIS Docker 4.6)"
-}
-
-# SUPPLY-CHAIN ---------------------------------------------------------------
+# SUPPLY-CHAIN — base image (không :latest/ADD, ghim digest) -----------------
 deny contains msg if {
 	some ins in input
 	ins.Cmd == "from"
@@ -93,4 +81,31 @@ warn contains msg if {
 	not contains(ins.Value[0], "@sha256:")
 	not endswith(ins.Value[0], ":latest")
 	msg := sprintf("SUPPLY-CHAIN: base image '%s' is not pinned by digest. (CIS Docker 4.5; SLSA)", [ins.Value[0]])
+}
+
+# SECRET-IN-IMAGE — cải tiến của nhóm (ngoài bản mẫu lab) --------------------
+# Bí mật đặt trong ENV/ARG bị bake vào layer ảnh và lộ qua `docker history`. Ánh xạ
+# luật secret của compose (F03) xuống tầng Dockerfile. ENV parse thành [key, value, "=", ...];
+# ARG parse thành ["KEY=VALUE"].
+secret_key := `(?i)(password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential)`
+
+deny contains msg if {
+	some ins in input
+	ins.Cmd == "env"
+	some i, key in ins.Value
+	i % 3 == 0
+	i + 1 < count(ins.Value)
+	regex.match(secret_key, key)
+	ins.Value[i + 1] != ""
+	msg := sprintf("SECRET-IN-IMAGE: ENV '%s' hardcodes a credential into the image (exposed via docker history); use build secrets/runtime env. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.3)", [key])
+}
+
+deny contains msg if {
+	some ins in input
+	ins.Cmd == "arg"
+	some tok in ins.Value
+	contains(tok, "=")
+	regex.match(secret_key, split(tok, "=")[0])
+	split(tok, "=")[1] != ""
+	msg := sprintf("SECRET-IN-IMAGE: ARG '%s' bakes a credential default into the image. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.3)", [split(tok, "=")[0]])
 }
