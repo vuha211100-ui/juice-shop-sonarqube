@@ -9,6 +9,40 @@ Học phần **DevOps và DevSecOps (SEC4349)** — Học viện Công nghệ B�
 
 ---
 
+## ⚡ Khởi động nhanh (máy đã cài sẵn & đã có repo)
+
+Đã từng cài Docker/Node/Python và chạy `npm ci` + `npm run build:server` **một lần** rồi →
+**bỏ qua mục 2–4**. Tại **gốc repo**, Docker Desktop đang xanh:
+
+```powershell
+# 1) TRƯỚC vá (127.0.0.1:3100) — tạo container đối chứng
+docker run -d --name juice-report-lab -p 127.0.0.1:3100:3000 `
+  --cap-drop ALL --security-opt no-new-privileges:true bkimminich/juice-shop:v20.2.0
+#    Nếu container đã tồn tại (chỉ bị dừng): docker start juice-report-lab
+
+# 2) SAU vá (127.0.0.1:3102) — proxy + backend internal
+docker compose up -d --build
+
+# 3) Kiểm tra (đợi backend 'healthy' ~30–60s rồi mới chạy tv2/tv3)
+docker compose ps
+```
+
+Rồi chạy 4 demo:
+
+```powershell
+foreach ($d in 'tv1_f01_sqli','tv2_f02_idor','tv3_f03_metrics','tv4_f04_policy') {
+  Write-Host "`n===== $d =====" -ForegroundColor Cyan
+  python report/demos/$d.py
+}
+```
+
+Dừng khi xong: `docker compose down` và `docker stop juice-report-lab`.
+
+> **Máy mới hoàn toàn** (chưa cài Docker/Node/Python) → đọc tiếp từ **mục 2**.
+> Quên đã cài `build/` chưa? Chạy `docker compose up -d --build`, nếu báo thiếu `build/` thì làm **mục 4** một lần.
+
+---
+
 ## 1. Thành viên & phân công
 
 | Thành viên | Lỗi phụ trách | Vá / kiểm tra tại |
