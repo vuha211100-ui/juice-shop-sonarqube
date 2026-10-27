@@ -2,7 +2,7 @@
 
 Báo cáo: `report/BaoCao_DevSecOps_JuiceShop_gon.pdf`.
 **Runbook đầy đủ (khởi động + chạy tất cả demo): `report/DEMO.md`.** File này tóm tắt nhanh.
-Chạy mọi lệnh tại **thư mục gốc repo** (sau khi `git checkout fix/f01-f04`).
+Chạy mọi lệnh tại **thư mục gốc repo** (clone xong là ở nhánh `main` — không cần checkout gì).
 
 ## Chuẩn bị
 
@@ -30,7 +30,8 @@ docker run --rm -e SEMGREP_SEND_METRICS=off -v "${PWD}:/src:ro" -v "${PWD}/repor
   semgrep/semgrep:1.180.0 semgrep scan --metrics=off --quiet --config /rules/owasp-top-ten.yml --config /rules/nodejsscan.yml /src/routes/login.ts /src/routes/basket.ts
 
 # Quét secret (Gitleaks)
-docker run --rm -v "${PWD}:/repo:ro" zricethezav/gitleaks:v8.30.1 git /repo --log-opts="main..fix/f01-f04" --no-banner
+docker run --rm -v "${PWD}:/repo:ro" zricethezav/gitleaks:v8.30.1 git /repo --log-opts="baf9dcea4..HEAD" --no-banner
+# baf9dcea4 = commit gốc trước khi vá; quét 14 commit F01–F04 sau nó (đừng dùng main..fix/f01-f04 — nay rỗng)
 
 # Policy as Code (Conftest/OPA) — unit test toàn bộ luật -> 17/17
 docker run --rm -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 verify -p policy --no-color

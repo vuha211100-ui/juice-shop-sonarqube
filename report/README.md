@@ -3,7 +3,7 @@
 Học phần **DevOps và DevSecOps (SEC4349)** — Học viện Công nghệ Bưu chính Viễn thông, Khoa An toàn thông tin.
 Đánh giá an toàn / bảo vệ dữ liệu người dùng trên **OWASP Juice Shop v20.2.0**, xử lý **4 lỗi** theo mạch *trước khi sửa → sau khi sửa*.
 
-> **Đọc file này trước.** Toàn bộ mã vá nằm ở **gốc repo** (nhánh `fix/f01-f04`); báo cáo + script demo nằm trong thư mục `report/`.
+> **Đọc file này trước.** Toàn bộ mã vá nằm ở **gốc repo** (nhánh mặc định `main`); báo cáo + script demo nằm trong thư mục `report/`.
 > Mỗi demo chạy cùng một kịch bản trên **hai môi trường** và in bảng *trước vá → sau vá*.
 
 ---

@@ -6,7 +6,7 @@ Mỗi demo chạy **cùng một kịch bản trên hai môi trường** và in b
 - **Trước vá** — container đối chứng `juice-report-lab`, image gốc, truy cập thẳng: `http://127.0.0.1:3100`
 - **Sau vá** — bản triển khai trong repo: reverse proxy Nginx → backend hotfix (mạng internal): `http://127.0.0.1:3102`
 
-> Clone repo này, `git checkout fix/f01-f04`, rồi chạy **mọi lệnh tại thư mục gốc của repo** (PowerShell, Docker Desktop đang chạy). Thư mục gốc repo chính là mã nguồn Juice Shop; báo cáo + demo nằm trong `report/`.
+> Clone repo này (nhánh mặc định `main` đã là bản báo cáo lần này — không cần checkout gì), rồi chạy **mọi lệnh tại thư mục gốc của repo** (PowerShell, Docker Desktop đang chạy). Thư mục gốc repo chính là mã nguồn Juice Shop; báo cáo + demo nằm trong `report/`.
 
 ---
 
@@ -103,8 +103,12 @@ node --import ./test/api/helpers/test-env.mjs --import tsx --test test/api/secur
 
 ```powershell
 docker run --rm -v "${PWD}:/repo:ro" `
-  zricethezav/gitleaks:v8.30.1 git /repo --log-opts="main..fix/f01-f04" --no-banner
+  zricethezav/gitleaks:v8.30.1 git /repo --log-opts="baf9dcea4..HEAD" --no-banner
 ```
+
+> `baf9dcea4` là commit gốc trước khi nhóm vá (14 commit F01–F04 nằm sau nó). Dùng khoảng cố định
+> này thay cho `main..fix/f01-f04` vì sau khi gộp báo cáo, `main` và `fix/f01-f04` trỏ cùng một commit
+> nên khoảng đó rỗng — Gitleaks sẽ không quét commit nào.
 
 ### 4.4. Policy as Code — Conftest/OPA (build time)
 
