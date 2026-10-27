@@ -3,7 +3,8 @@
 Học phần **DevOps và DevSecOps (SEC4349)** — Học viện Công nghệ Bưu chính Viễn thông, Khoa An toàn thông tin.
 Đánh giá an toàn / bảo vệ dữ liệu người dùng trên **OWASP Juice Shop v20.2.0**, xử lý **4 lỗi** theo mạch *trước khi sửa → sau khi sửa*.
 
-> **Đọc file này trước.** Toàn bộ mã vá nằm ở **gốc repo** (nhánh mặc định `main`); báo cáo + script demo nằm trong thư mục `report/`.
+> **Đọc file này trước.** Hướng dẫn chạy **từ số 0 trên một máy Windows 11 hoàn toàn mới**.
+> Mã vá nằm ở **gốc repo** (nhánh mặc định `main`); báo cáo + script demo nằm trong thư mục `report/`.
 > Mỗi demo chạy cùng một kịch bản trên **hai môi trường** và in bảng *trước vá → sau vá*.
 
 ---
@@ -19,40 +20,80 @@ Học phần **DevOps và DevSecOps (SEC4349)** — Học viện Công nghệ B�
 
 ---
 
-## 2. Chuẩn bị (cài một lần)
+## 2. Cài đặt trên máy mới hoàn toàn (Windows 11)
 
-| Công cụ | Dùng để | Ghi chú |
-|---|---|---|
-| **Docker Desktop** (WSL2) | chạy container + Conftest/Semgrep/Gitleaks | phải đang chạy trước khi demo |
-| **Python 3.12+** | chạy 4 script demo | `python --version` để kiểm tra |
-| **Node.js 20+** | build image hotfix + chạy kiểm thử bảo mật | |
+Cần **4 phần mềm**: Git, Docker Desktop (nền WSL2), Node.js ≥20, Python ≥3.12.
+Windows 11 có sẵn `winget`. Mở **PowerShell quyền Administrator** (Start → gõ *PowerShell* → **Run as administrator**).
 
-Các image Docker sẽ **tự tải** khi chạy: `bkimminich/juice-shop:v20.2.0`, `nginx:1.28-alpine`,
-`openpolicyagent/conftest:v0.71.1`, `semgrep/semgrep:1.180.0`, `zricethezav/gitleaks:v8.30.1`.
+### 2.1. Bật ảo hoá + WSL2 (Docker cần)
+
+```powershell
+wsl --install
+```
+
+- Cài WSL2 + Ubuntu. **Khởi động lại máy** sau khi xong rồi làm tiếp.
+- Nếu báo lỗi ảo hoá: vào **BIOS/UEFI** bật **Virtualization (Intel VT‑x / AMD‑V)**.
+
+### 2.2. Cài 4 công cụ
+
+```powershell
+winget install -e --id Git.Git
+winget install -e --id Docker.DockerDesktop
+winget install -e --id OpenJS.NodeJS.LTS      # Node LTS (≥20)
+winget install -e --id Python.Python.3.12
+```
+
+> Không có `winget`? Cập nhật **App Installer** trong Microsoft Store, hoặc tải tay:
+> Git — git-scm.com · Docker — docker.com/products/docker-desktop ·
+> Node — nodejs.org (bản **LTS**) · Python — python.org (**≥3.12**, nhớ tick *Add python.exe to PATH*).
+
+### 2.3. Khởi động Docker Desktop
+
+- Mở **Docker Desktop**, chấp nhận điều khoản, đợi biểu tượng cá voi chuyển **xanh** (*Engine running*).
+- Settings → General: bật **Use the WSL 2 based engine**.
+
+### 2.4. Kiểm tra (mở một cửa sổ PowerShell **MỚI** để PATH cập nhật)
+
+```powershell
+git --version          # hiện bất kỳ phiên bản
+docker version         # phải thấy phần "Server" -> Docker đang chạy
+docker run --rm hello-world
+node --version         # v20 trở lên
+npm --version
+python --version       # 3.12 trở lên
+```
+
+Chạy trơn cả 6 lệnh là xong phần cài đặt.
+
+> **macOS / Linux** cũng chạy được: cần Docker, Node ≥20, Python ≥3.12; thay PowerShell bằng terminal tương ứng
+> và đổi ký tự nối dòng `` ` `` thành `\`.
 
 ---
 
-## 3. Cách chạy (từng bước)
-
-Mở **PowerShell**, Docker Desktop đang chạy. Chạy mọi lệnh tại **thư mục gốc repo**.
-
-### 3.1. Lấy mã nguồn
+## 3. Lấy mã nguồn
 
 ```powershell
+cd $HOME\Desktop                 # hoặc thư mục bất kỳ
 git clone https://github.com/vuha211100-ui/juice-shop-sonarqube
 cd juice-shop-sonarqube
 # Nhánh mặc định 'main' đã là báo cáo lần này — clone xong là chạy được, không cần checkout gì thêm.
 ```
 
-### 3.2. Lần đầu: build server + tạo volume log
+**Từ đây chạy mọi lệnh tại thư mục gốc repo** (`juice-shop-sonarqube`), Docker Desktop đang xanh.
+
+---
+
+## 4. Lần đầu: build server + tạo volume log
 
 ```powershell
-npm ci
-npm run build:server
+npm ci                 # cài phụ thuộc (vài phút, tải vài trăm MB)
+npm run build:server   # biên dịch server -> build/ (dùng để dựng image hotfix F01/F02)
 docker volume create juice-report-accesslogs
 ```
 
-### 3.3. Khởi động hai môi trường
+---
+
+## 5. Khởi động hai môi trường
 
 ```powershell
 # TRƯỚC vá — container đối chứng, image gốc (127.0.0.1:3100)
@@ -66,7 +107,12 @@ docker compose up -d --build
 docker compose ps        # kiểm tra proxy + juice-shop đã chạy
 ```
 
-### 3.4. Chạy cả 4 demo (một lệnh)
+Lần đầu Docker **tự tải** các image: `bkimminich/juice-shop:v20.2.0`, `nginx:1.28-alpine`,
+`openpolicyagent/conftest:v0.71.1`, `semgrep/semgrep:1.180.0`, `zricethezav/gitleaks:v8.30.1` (mất vài phút).
+
+---
+
+## 6. Chạy cả 4 demo (một lệnh)
 
 ```powershell
 foreach ($d in 'tv1_f01_sqli','tv2_f02_idor','tv3_f03_metrics','tv4_f04_policy') {
@@ -77,7 +123,9 @@ foreach ($d in 'tv1_f01_sqli','tv2_f02_idor','tv3_f03_metrics','tv4_f04_policy')
 
 Hoặc chạy từng cái: `python report/demos/tv1_f01_sqli.py` …
 
-### 3.5. Kết quả mong đợi
+---
+
+## 7. Kết quả mong đợi
 
 | Demo | Trước vá | Sau vá |
 |---|---|---|
@@ -88,7 +136,7 @@ Hoặc chạy từng cái: `python report/demos/tv1_f01_sqli.py` …
 
 ---
 
-## 4. Các cổng kiểm soát (Security as Code / Policy as Code)
+## 8. Các cổng kiểm soát (Security as Code / Policy as Code)
 
 Lệnh chi tiết cho từng cổng (Semgrep SAST, Gitleaks, node:test đỏ→xanh, Conftest build-time & runtime) ở **`report/DEMO.md` mục 4**. Tóm tắt:
 
@@ -99,11 +147,11 @@ Lệnh chi tiết cho từng cổng (Semgrep SAST, Gitleaks, node:test đỏ→x
 
 ---
 
-## 5. Tài liệu & bản đồ thư mục `report/`
+## 9. Tài liệu & bản đồ thư mục `report/`
 
 | Đường dẫn | Mô tả |
 |---|---|
-| `README.md` | **File này** — tổng quan + cách chạy |
+| `README.md` | **File này** — cài máy mới + cách chạy |
 | `DEMO.md` | Runbook đầy đủ: khởi động + chạy mọi demo + từng cổng kiểm soát |
 | `HUONG_DAN_DEMO.md` | Bản tóm tắt nhanh theo từng lỗi |
 | `PHAN_NOI.md` | Kịch bản thuyết trình + 12 câu hỏi phản biện |
@@ -119,7 +167,7 @@ Lệnh chi tiết cho từng cổng (Semgrep SAST, Gitleaks, node:test đỏ→x
 
 ---
 
-## 6. Dừng / dọn môi trường
+## 10. Dừng / dọn môi trường
 
 ```powershell
 docker compose down               # dừng bản sau vá (giữ volume log)
@@ -128,13 +176,18 @@ docker stop juice-report-lab      # dừng container đối chứng
 
 ---
 
-## 7. Khắc phục sự cố
+## 11. Khắc phục sự cố
 
 | Triệu chứng | Nguyên nhân & cách xử lý |
 |---|---|
-| Lệnh docker báo *"daemon … not running"* | Mở **Docker Desktop**, đợi biểu tượng xanh rồi chạy lại. |
-| Demo báo không thấy container | Tên phải là `juice-app-proxy-1` / `juice-app-juice-shop-1` — do `docker-compose.yml` đặt `name: juice-app`. Đừng đổi tên project. |
-| `tv1/tv2/tv3` không có cột *trước vá* | Chưa chạy container đối chứng — xem **3.3** (`docker run --name juice-report-lab …`). |
+| `winget` *không nhận lệnh* | Mở Microsoft Store, cập nhật **App Installer**; hoặc tải cài tay theo mục 2.2. |
+| `wsl --install` lỗi, hoặc Docker không khởi động được | Chưa bật ảo hoá — vào **BIOS/UEFI** bật **Virtualization (VT‑x/AMD‑V)**, rồi khởi động lại. |
+| Lệnh docker báo *"daemon … not running"* | Mở **Docker Desktop**, đợi biểu tượng **xanh** rồi chạy lại. |
+| `git` / `node` / `python` *không nhận lệnh* | Mở **cửa sổ PowerShell mới** (PATH mới cập nhật). Cài Python nhớ tick *Add to PATH*. |
+| `npm ci` lỗi về phiên bản Node | Dùng **Node 20 LTS** (Juice Shop 20.2.0). Có thể cài qua `nvm-windows` rồi `nvm use 20`. |
+| `docker compose up` lỗi thiếu `build/` | Chưa `npm run build:server` — xem **mục 4**. |
+| Demo báo không thấy container | Tên phải là `juice-app-proxy-1` / `juice-app-juice-shop-1` (do `docker-compose.yml` đặt `name: juice-app`). Đừng đổi tên project. |
+| `tv1/tv2/tv3` không có cột *trước vá* | Chưa chạy container đối chứng — xem **mục 5** (`docker run --name juice-report-lab …`). |
 | Cổng `3101` báo **refused** | **Đúng thiết kế** (F03): backend không mở cổng host, chỉ tới được qua proxy. |
-| `docker compose up` lỗi thiếu `build/` | Chưa `npm run build:server` — xem **3.2**. |
-| `python` không chạy | Cài Python 3.12+ và thêm vào PATH. |
+| Cổng `3100`/`3102` báo *đang bận* | Có container cũ giữ cổng — `docker ps` rồi `docker stop <tên>`, hoặc `docker compose down`. |
+| Lần đầu chạy rất chậm | Docker đang tải image (vài trăm MB) — đợi mạng xong là nhanh ở các lần sau. |

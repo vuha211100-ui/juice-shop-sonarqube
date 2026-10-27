@@ -12,6 +12,9 @@ Mỗi demo chạy **cùng một kịch bản trên hai môi trường** và in b
 
 ## 0. Yêu cầu
 
+> **Máy mới hoàn toàn?** Cài Git / Docker Desktop (WSL2) / Node ≥20 / Python ≥3.12 từ số 0 theo
+> **`README.md` mục 2** trước, rồi quay lại đây.
+
 | Thành phần | Dùng để |
 |---|---|
 | Docker Desktop (WSL2) | chạy container, Conftest, Semgrep, Gitleaks |
