@@ -7,7 +7,7 @@ Chạy mọi lệnh tại **thư mục gốc repo** (sau khi `git checkout fix/f
 ## Chuẩn bị
 
 ```powershell
-git checkout fix/f01-f04
+# Nhánh mặc định 'main' đã là báo cáo lần này (clone xong là ở main).
 docker start juice-report-lab        # TRƯỚC vá: image gốc, 127.0.0.1:3100 (lần đầu xem DEMO.md mục 1)
 docker compose up -d --build         # SAU vá: proxy 127.0.0.1:3102 (project 'juice-app')
 docker compose ps
@@ -41,6 +41,6 @@ docker run --rm -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 v
 ```powershell
 git checkout 21219d66d -- routes        # lấy tạm route chưa vá -> một số ca đỏ
 node --import ./test/api/helpers/test-env.mjs --import tsx --test test/api/security/f01-f02.test.ts
-git checkout fix/f01-f04 -- routes      # trả lại bản vá -> toàn bộ ca xanh
+git checkout HEAD -- routes             # trả lại bản vá -> toàn bộ ca xanh
 node --import ./test/api/helpers/test-env.mjs --import tsx --test test/api/security/f01-f02.test.ts
 ```

@@ -41,7 +41,7 @@ Mở **PowerShell**, Docker Desktop đang chạy. Chạy mọi lệnh tại **th
 ```powershell
 git clone https://github.com/vuha211100-ui/juice-shop-sonarqube
 cd juice-shop-sonarqube
-git checkout fix/f01-f04
+# Nhánh mặc định 'main' đã là báo cáo lần này — clone xong là chạy được, không cần checkout gì thêm.
 ```
 
 ### 3.2. Lần đầu: build server + tạo volume log

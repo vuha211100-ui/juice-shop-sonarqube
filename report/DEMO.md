@@ -26,7 +26,7 @@ Image lấy từ Docker Hub (demo tự pull): `bkimminich/juice-shop:v20.2.0`, `
 ## 1. Khởi động môi trường
 
 ```powershell
-git checkout fix/f01-f04
+# Nhánh mặc định 'main' đã là báo cáo lần này (clone xong là ở main).
 
 # Lần đầu: build server để dựng image hotfix, tạo volume log
 npm ci
@@ -94,8 +94,8 @@ docker run --rm -e SEMGREP_SEND_METRICS=off `
 git checkout 21219d66d -- routes
 node --import ./test/api/helpers/test-env.mjs --import tsx --test test/api/security/f01-f02.test.ts
 
-# Trả lại bản vá -> kỳ vọng toàn bộ XANH
-git checkout fix/f01-f04 -- routes
+# Trả lại bản vá (routes của nhánh hiện tại) -> kỳ vọng toàn bộ XANH
+git checkout HEAD -- routes
 node --import ./test/api/helpers/test-env.mjs --import tsx --test test/api/security/f01-f02.test.ts
 ```
 
