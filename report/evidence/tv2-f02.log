@@ -1,0 +1,15 @@
+# EVIDENCE tv2-f02
+# command : python report/demos/tv2_f02_pathtraversal.py
+# cwd     : E:\banhoaqua\juice-shop
+# time    : 2026-10-29 01:18
+# commit  : 491fd8315
+# exit    : 0
+# ----- combined stdout+stderr -----
+Môi trường  Yêu cầu                               HTTP  Kết quả                Kết luận
+----------  ------------------------------------  ----  ---------------------  -------------------------------
+trước vá    GET /ftp/legal.md (hợp lệ)            200   nội dung tệp           tải tệp .md bình thường
+trước vá    GET /ftp/package.json.bak%2500.md     200   đọc được nội dung tệp  LỖ HỔNG: lộ package.json.bak
+trước vá    GET /ftp/coupons_2013.md.bak%2500.md  200   đọc được nội dung tệp  LỖ HỔNG: lộ coupons_2013.md.bak
+sau vá      GET /ftp/legal.md (hợp lệ)            200   nội dung tệp           tải tệp .md bình thường
+sau vá      GET /ftp/package.json.bak%2500.md     403   -                      an toàn: từ chối (403)
+sau vá      GET /ftp/coupons_2013.md.bak%2500.md  403   -                      an toàn: từ chối (403)

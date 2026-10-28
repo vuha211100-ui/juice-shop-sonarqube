@@ -189,7 +189,7 @@ def main():
         elif 'rules.' in l and cur:
             files.setdefault(cur, []).append(l.rsplit('.', 1)[-1].strip())
     HI = {'routes/login.ts': 'F01 SQL injection (đăng nhập) — vượt xác thực',
-          'routes/fileServer.ts': 'F02 path traversal (poison null byte) — đọc tệp sao lưu nhạy cảm',
+          'routes/fileServer.ts': 'F02 Poison Null Byte — đọc tệp sao lưu nhạy cảm',
           'lib/insecurity.ts': 'MD5 không salt (CWE-327) — rủi ro còn lại, ngoài phạm vi vá'}
     ov = [('cmd', 'semgrep scan --config owasp-top-ten.yml --config nodejsscan.yml routes/ lib/   # mã chưa vá'),
           ('out', f'{count} Code Findings trên {len(files)} tệp (CẢNH BÁO công cụ, chưa phải {count} lỗ hổng đã xác nhận) — rút gọn:')]
@@ -214,7 +214,7 @@ def main():
         ('out', ''),
         ('note', 'Phân loại của nhóm:'),
         ('out', '  F01  login.ts       SQL injection ở đăng nhập -> vượt xác thực. Vá: truy vấn tham số.'),
-        ('out', '  F02  fileServer.ts  path traversal (poison null byte) -> đọc tệp sao lưu nhạy cảm.'),
+        ('out', '  F02  fileServer.ts  Poison Null Byte -> đọc tệp sao lưu nhạy cảm.'),
         ('out', '                      Vá: từ chối tên file chứa null byte (403).'),
         ('out', '  --   insecurity.ts   MD5 không salt — rủi ro lưu trữ còn lại, ngoài phạm vi vá.'),
     ], evid_id='semgrep-overview', rc=sgrc)

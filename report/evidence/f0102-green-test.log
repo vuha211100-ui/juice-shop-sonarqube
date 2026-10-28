@@ -1,0 +1,52 @@
+# EVIDENCE f0102-green-test
+# command : node --import ./test/api/helpers/test-env.mjs --import tsx --test test/api/security/f01-f02.test.ts
+# cwd     : E:\banhoaqua\juice-shop
+# time    : 2026-10-29 01:18
+# commit  : 491fd8315
+# exit    : 0
+# ----- combined stdout+stderr -----
+▶ F01 — đăng nhập không bị SQL injection
+  ✔ đăng nhập đúng email và mật khẩu vẫn trả token (56.294ms)
+  ✔ payload "' OR 1=1--" với mật khẩu sai bị từ chối (401) (9.9204ms)
+  ✔ payload "admin@juice-sh.op'--" với mật khẩu sai bị từ chối (401) (12.9056ms)
+  ✔ payload "' UNION SELECT * FROM Users--" với mật khẩu sai bị từ chối (401) (16.8169ms)
+  ✔ payload "';" với mật khẩu sai bị từ chối (401) (16.53ms)
+  ✔ email không phải chuỗi bị từ chối (401) (14.7941ms)
+✔ F01 — đăng nhập không bị SQL injection (757.5475ms)
+▶ F02 — tải tệp tĩnh không bị path traversal qua poison null byte
+  ✔ tệp .md hợp lệ vẫn tải được (200) (9.1523ms)
+error: [56ebe5f61e6e] Error: File names cannot contain null bytes!
+    at verify (E:\banhoaqua\juice-shop\routes\fileServer.ts:30:12)
+    at <anonymous> (E:\banhoaqua\juice-shop\routes\fileServer.ts:18:7)
+    at Layer.handle [as handle_request] (E:\banhoaqua\juice-shop\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:328:13)
+    at E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:286:9
+    at param (E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:365:14)
+    at param (E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:376:14)
+    at router.process_params (E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:421:3)
+    at next (E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:280:10)
+    at E:\banhoaqua\juice-shop\node_modules\serve-index\index.js:139:16
+    at FSReqCallback.oncomplete (node:fs:195:21)
+  ✔ poison null byte không vượt allowlist để đọc package.json.bak (403) (6.8266ms)
+error: [bb4589e442e0] Error: File names cannot contain null bytes!
+    at verify (E:\banhoaqua\juice-shop\routes\fileServer.ts:30:12)
+    at <anonymous> (E:\banhoaqua\juice-shop\routes\fileServer.ts:18:7)
+    at Layer.handle [as handle_request] (E:\banhoaqua\juice-shop\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:328:13)
+    at E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:286:9
+    at param (E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:365:14)
+    at param (E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:376:14)
+    at router.process_params (E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:421:3)
+    at next (E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:280:10)
+    at E:\banhoaqua\juice-shop\node_modules\serve-index\index.js:139:16
+    at FSReqCallback.oncomplete (node:fs:195:21)
+  ✔ poison null byte không đọc được bản sao lưu coupon (403) (4.6472ms)
+✔ F02 — tải tệp tĩnh không bị path traversal qua poison null byte (20.9273ms)
+ℹ tests 9
+ℹ suites 2
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3551.0208

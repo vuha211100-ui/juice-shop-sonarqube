@@ -72,7 +72,7 @@ Hoặc chạy từng demo theo bảng dưới.
 | Lỗi (thành viên) | Lệnh demo | Kết quả mong đợi | Nơi vá |
 |---|---|---|---|
 | **F01 — SQL injection** (Nguyễn Toàn Thắng) | `python report/demos/tv1_f01_sqli.py` | trước vá: payload được cấp token; sau vá: 401 | `routes/login.ts` |
-| **F02 — Path traversal ở route tải tệp** (Phạm Thị Minh Thúy) | `python report/demos/tv2_f02_pathtraversal.py` | trước vá: null byte đọc được tệp sao lưu nhạy cảm; sau vá: 403 | `routes/fileServer.ts` |
+| **F02 — Poison Null Byte (route tải tệp)** (Phạm Thị Minh Thúy) | `python report/demos/tv2_f02_pathtraversal.py` | trước vá: null byte đọc được tệp sao lưu nhạy cảm; sau vá: 403 | `routes/fileServer.ts` |
 | **F03 — endpoint /metrics** (Đỗ Đức Quốc Anh) | `python report/demos/tv3_f03_metrics.py` | 3100/metrics lộ; 3102/metrics → 404; cổng 3101 refused; giám sát nội bộ vẫn đọc được | `docker-compose.yml`, `deploy/nginx.conf` |
 | **F04 — sai cấu hình container / Policy as Code** (Hồ Anh Vũ) | `python report/demos/tv4_f04_policy.py` | Dockerfile.vulnerable bị chặn 4 nhóm luật; bản vá, hotfix và **Dockerfile gốc đều đạt chính sách** | `policy/docker_security.rego` |
 

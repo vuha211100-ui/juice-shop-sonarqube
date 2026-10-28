@@ -18,8 +18,8 @@ forbidden_ports := {"22", "23", "2375", "2376", "3306", "5432", "6379", "27017"}
 
 required_labels := {"org.opencontainers.image.source", "org.opencontainers.image.revision"}
 
-# UID là phần trước dấu ':' trong 'USER uid[:gid]'. Nhận diện root ('0' hoặc 'root') bất kể group kèm theo,
-# nên 'USER 0:1000' vẫn bị bắt là root (trước đây lọt vì chỉ so khớp nguyên chuỗi).
+# UID là phần trước dấu ':' trong 'USER uid[:gid]'. Nhận diện root ('0' hoặc 'root') độc lập với group
+# kèm theo, nên 'USER 0:1000' cũng bị nhận diện là root.
 uid_of(u) := split(u, ":")[0]
 
 # Chỉ STAGE CUỐI tạo ra image chạy thật; USER ở stage builder không áp dụng cho runtime.
