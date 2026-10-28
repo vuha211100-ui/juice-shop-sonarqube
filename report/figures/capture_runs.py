@@ -1,14 +1,22 @@
-"""Chụp 'ảnh chạy thật' các cổng kiểm soát -> report/screenshots/*.png (kiểu cửa sổ terminal).
+"""Dựng 'ảnh chạy' các cổng kiểm soát -> report/screenshots/*.png (kiểu cửa sổ terminal).
 
-Chạy LIVE các lệnh (cần Docker Desktop đang chạy + 3 container demo đã up) rồi render output thật.
-Chạy:  python report/figures/capture_runs.py
-Sinh:  env.png, gitleaks.png, conftest-verify.png
+Khác với bản cũ: MỖI lệnh chạy LIVE, bắt đủ stdout + stderr + exit code, ghi log gốc ra
+report/evidence/<id>.log (kèm lệnh, thời điểm, commit, phiên bản công cụ, exit code), rồi
+render lại chính output đó. Dòng kết luận PASS/FAIL/GATE được TÍNH TỪ exit code thật — một
+lần chạy lỗi không thể tạo ra dòng xanh. Hình vì vậy là bản dựng trung thực từ log, không phải
+ảnh chụp màn hình; log gốc đi kèm để đối chiếu.
+
+Cần Docker Desktop đang chạy + 3 container demo (juice-report-lab, juice-app-proxy-1,
+juice-app-juice-shop-1). Chạy:  python report/figures/capture_runs.py
 """
+import datetime
+import io
 import pathlib
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 
 from PIL import Image, ImageDraw, ImageFont
@@ -17,19 +25,29 @@ sys.stdout.reconfigure(encoding='utf-8')
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SHOTS = ROOT / 'report' / 'screenshots'
+EVID = ROOT / 'report' / 'evidence'
+EVID.mkdir(parents=True, exist_ok=True)
 ANSI = re.compile(r'\x1b\[[0-9;]*m')
+
+# phiên bản công cụ (ghim theo tag image dùng để chạy) — vào header log gốc
+TOOLS = {'gitleaks': 'zricethezav/gitleaks:v8.30.1', 'conftest': 'openpolicyagent/conftest:v0.71.1',
+         'semgrep': 'semgrep/semgrep:1.180.0'}
+COMMIT = subprocess.run(['git', '-C', str(ROOT), 'rev-parse', '--short', 'HEAD'],
+                        capture_output=True, text=True).stdout.strip() or '?'
+NOW = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
 
 BG = (22, 27, 34)
 BAR = (45, 51, 59)
 FG = (201, 209, 217)
+DIM = (125, 133, 144)
 PROMPT = (126, 231, 135)
 CMD = (240, 246, 252)
 OKC = (63, 185, 80)
 RED = (248, 81, 73)
 YEL = (210, 153, 34)
 GRN = (46, 204, 113)
-HLC = (240, 180, 41)   # vàng hổ phách — dòng highlight (lỗi nhóm xử lý)
-HLBG = (58, 50, 24)    # nền mờ cho dòng highlight
+HLC = (240, 180, 41)   # vàng hổ phách — dòng highlight (điểm trong phạm vi báo cáo)
+HLBG = (58, 50, 24)
 
 
 def font(sz, bold=False):
@@ -42,22 +60,34 @@ def font(sz, bold=False):
     return ImageFont.load_default()
 
 
-F, FB, FT = font(15), font(15, True), font(14, True)
+F, FB, FT, FD = font(15), font(15, True), font(14, True), font(13)
 
 
-def sh(*args, cwd=None):
-    p = subprocess.run(args, capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=cwd)
-    return ANSI.sub('', (p.stdout or '') + (p.stderr or '')).rstrip('\n')
+def run(evid_id, display, argv, cwd=None, tool=None):
+    """Chạy LIVE, bắt stdout+stderr+exit code, ghi log gốc, trả (text, rc)."""
+    p = subprocess.run(argv, capture_output=True, text=True, encoding='utf-8',
+                       errors='replace', cwd=cwd)
+    text = ANSI.sub('', (p.stdout or '') + (p.stderr or '')).rstrip('\n')
+    hdr = [f'# EVIDENCE {evid_id}', f'# command : {display}',
+           f'# argv    : {" ".join(argv)}', f'# cwd     : {cwd or str(ROOT)}',
+           f'# time    : {NOW}', f'# commit  : {COMMIT}']
+    if tool:
+        hdr.append(f'# tool    : {TOOLS.get(tool, tool)}')
+    hdr += [f'# exit    : {p.returncode}', '# ----- combined stdout+stderr -----']
+    (EVID / f'{evid_id}.log').write_text('\n'.join(hdr) + '\n' + text + '\n', encoding='utf-8')
+    print(f'  evidence/{evid_id}.log  exit={p.returncode}')
+    return text, p.returncode
 
 
-def render(out, title, blocks):
+def render(out, title, blocks, evid_id=None, rc=None):
     rows = []
     for kind, txt in blocks:
         for ln in txt.split('\n'):
             rows.append((kind, ln))
     pad, lh, top = 18, 23, 46
     W = 1480
-    H = top + lh * len(rows) + 18
+    foot_h = 26 if evid_id is not None else 0
+    H = top + lh * len(rows) + 18 + foot_h
     img = Image.new('RGB', (W, H), BG)
     d = ImageDraw.Draw(img)
     d.rectangle([0, 0, W, 36], fill=BAR)
@@ -72,64 +102,83 @@ def render(out, title, blocks):
             d.text((pad + d.textlength(pr, font=FB), y), ln, font=FB, fill=CMD)
         elif kind == 'ok':
             d.text((pad, y), ln, font=FB, fill=OKC)
+        elif kind == 'fail':
+            d.text((pad, y), ln, font=FB, fill=RED)
+        elif kind == 'note':
+            d.text((pad, y), ln, font=FB, fill=YEL)
         elif kind == 'hl':
             d.rectangle([0, y - 2, W, y + lh - 2], fill=HLBG)
             d.text((pad, y), ln, font=FB, fill=HLC)
         else:
             d.text((pad, y), ln, font=F, fill=FG)
         y += lh
+    if evid_id is not None:
+        foot = f'log gốc: report/evidence/{evid_id}.log   ·   {NOW}   ·   commit {COMMIT}   ·   exit code {rc}'
+        d.text((pad, H - foot_h + 4), foot, font=FD, fill=DIM)
     img.save(out)
     print('wrote', out.name, img.size)
 
 
-CF = ['docker', 'run', '--rm', '-v', f'{ROOT.as_posix()}:/work:ro', '-w', '/work', 'openpolicyagent/conftest:v0.71.1']
-GL = ['docker', 'run', '--rm', '-v', f'{ROOT.as_posix()}:/repo:ro', 'zricethezav/gitleaks:v8.30.1',
+CF = ['docker', 'run', '--rm', '-v', f'{ROOT.as_posix()}:/work:ro', '-w', '/work', TOOLS['conftest']]
+GL = ['docker', 'run', '--rm', '-v', f'{ROOT.as_posix()}:/repo:ro', TOOLS['gitleaks'],
       'git', '/repo', '--log-opts=baf9dcea4..HEAD', '--no-banner']
 
 
 def main():
-    # 1) Môi trường hai pha đang chạy
-    ps = sh('docker', 'compose', 'ps', '--format', 'table {{.Name}}\t{{.Status}}\t{{.Ports}}', cwd=str(ROOT))
-    lab = sh('docker', 'ps', '--filter', 'name=juice-report-lab', '--format', 'table {{.Names}}\t{{.Status}}\t{{.Ports}}')
-    render(SHOTS / 'env.png', 'Windows PowerShell — môi trường DevSecOps (TRƯỚC vá 3100 + SAU vá 3102)', [
+    # 1) Môi trường hai pha đang chạy (thông tin, không có PASS/FAIL)
+    ps, _ = run('env-compose', 'docker compose ps', ['docker', 'compose', 'ps', '--format',
+                'table {{.Name}}\t{{.Status}}\t{{.Ports}}'], cwd=str(ROOT))
+    lab, _ = run('env-lab', 'docker ps --filter name=juice-report-lab',
+                 ['docker', 'ps', '--filter', 'name=juice-report-lab', '--format',
+                  'table {{.Names}}\t{{.Status}}\t{{.Ports}}'])
+    render(SHOTS / 'env.png', 'Windows PowerShell — môi trường DevSecOps (đối chứng 3100 + triển khai 3102)', [
         ('cmd', 'docker compose ps                 # bản SAU vá: proxy + backend internal'),
         ('out', ps),
         ('cmd', 'docker ps --filter name=juice-report-lab   # bản TRƯỚC vá (đối chứng)'),
         ('out', lab),
-    ])
+    ], evid_id='env-compose', rc=0)
 
-    # 2) Gitleaks — quét secret
-    print('đang chạy Gitleaks (~15s)...')
-    gl = sh(*GL)
+    # 2) Gitleaks — quét secret; PASS <=> exit 0
+    print('Gitleaks (~15s)...')
+    gl, rc = run('gitleaks', 'gitleaks git /repo --log-opts=baf9dcea4..HEAD', GL, tool='gitleaks')
+    ncommit = next((re.search(r'(\d+)\s*commits', l).group(1) for l in gl.split('\n') if 'commits' in l), None)
+    summ = (f'=> exit {rc}: không phát hiện secret theo cấu hình quét Gitleaks trong phạm vi commit baf9dcea4..HEAD'
+            if rc == 0 else f'=> exit {rc}: Gitleaks báo phát hiện — xem log gốc')
     render(SHOTS / 'gitleaks.png', 'Windows PowerShell — Gitleaks quét secret (Security as Code)', [
         ('cmd', 'docker run --rm -v ${PWD}:/repo:ro zricethezav/gitleaks:v8.30.1 \\'),
         ('cmd', '    git /repo --log-opts="baf9dcea4..HEAD" --no-banner'),
         ('out', gl),
-        ('ok', '=> Không có secret/khóa bí mật nào lộ trong các commit vá.'),
-    ])
+        (('ok' if rc == 0 else 'fail'), summ),
+    ], evid_id='gitleaks', rc=rc)
 
-    # 3) Conftest verify — unit test toàn bộ policy
-    cv = sh(*CF, 'verify', '-p', 'policy', '--no-color')
-    tail = '\n'.join([l for l in cv.split('\n') if l.strip()][-2:])
-    render(SHOTS / 'conftest-verify.png', 'Windows PowerShell — Conftest verify (Policy as Code: 17/17)', [
+    # 3) Conftest verify — unit test toàn bộ policy; PASS <=> exit 0 và số liệu lấy từ output
+    cv, rc = run('conftest-verify', 'conftest verify -p policy', CF + ['verify', '-p', 'policy', '--no-color'], tool='conftest')
+    line = next((l for l in cv.split('\n') if re.search(r'\d+ tests?,', l)), '')
+    npass = next((re.search(r'(\d+) passed', line).group(1) for _ in [0] if 'passed' in line), '?')
+    summ = (f'=> exit {rc}: {npass} unit test của bộ luật Rego đều đạt (13 ca Dockerfile + 6 ca compose).'
+            if rc == 0 else f'=> exit {rc}: có unit test KHÔNG đạt — xem log gốc.')
+    render(SHOTS / 'conftest-verify.png', 'Windows PowerShell — Conftest verify (Policy as Code: unit test bộ luật Rego)', [
         ('cmd', 'docker run --rm -v ${PWD}:/work:ro -w /work \\'),
         ('cmd', '    openpolicyagent/conftest:v0.71.1 verify -p policy'),
-        ('out', tail),
-        ('ok', '=> Toàn bộ 17 unit test của bộ luật Rego đều đạt.'),
-    ])
+        ('out', line or cv.split('\n')[-1]),
+        (('ok' if rc == 0 else 'fail'), summ),
+    ], evid_id='conftest-verify', rc=rc)
 
-    # 4) Semgrep (SAST) quét TOÀN BỘ mã chưa vá -> nhiều findings, highlight F01/F02
-    print('đang chạy Semgrep trên toàn bộ routes/ + lib/ chưa vá (~30s)...')
-    import io
-    import tarfile
+    # 4) Semgrep (SAST) quét TOÀN BỘ mã chưa vá -> nhiều cảnh báo; highlight phạm vi báo cáo.
+    #    QUAN TRỌNG (R01): Semgrep = gợi ý vị trí cần rà. F01 xác nhận ở login.ts; cảnh báo tại
+    #    basket.ts là NoSQLi (CWE-943) — KHÔNG phải IDOR; IDOR xác nhận bằng test A/B (mục 5.2).
+    print('Semgrep trên routes/ + lib/ chưa vá (~30s)...')
     vroot = pathlib.Path(tempfile.mkdtemp(prefix='vuln-'))
     arch = subprocess.run(['git', '-C', str(ROOT), 'archive', '21219d66d', 'routes', 'lib'], capture_output=True)
     with tarfile.open(fileobj=io.BytesIO(arch.stdout)) as tf:
         tf.extractall(vroot)
-    sg = sh('docker', 'run', '--rm', '-e', 'SEMGREP_SEND_METRICS=off',
-            '-v', f'{vroot.as_posix()}:/src:ro', '-v', f'{(ROOT / "report" / "semgrep-rules").as_posix()}:/rules:ro',
-            'semgrep/semgrep:1.180.0', 'semgrep', 'scan', '--metrics=off',
-            '--config', '/rules/owasp-top-ten.yml', '--config', '/rules/nodejsscan.yml', '/src')
+    sg, sgrc = run('semgrep-overview', 'semgrep scan --config owasp-top-ten.yml --config nodejsscan.yml routes/ lib/',
+                   ['docker', 'run', '--rm', '-e', 'SEMGREP_SEND_METRICS=off',
+                    '-v', f'{vroot.as_posix()}:/src:ro',
+                    '-v', f'{(ROOT / "report" / "semgrep-rules").as_posix()}:/rules:ro',
+                    TOOLS['semgrep'], 'semgrep', 'scan', '--metrics=off',
+                    '--config', '/rules/owasp-top-ten.yml', '--config', '/rules/nodejsscan.yml', '/src'],
+                   tool='semgrep')
     shutil.rmtree(vroot, ignore_errors=True)
     count = next((re.search(r'(\d+) Code Findings', l).group(1) for l in sg.split('\n') if 'Code Findings' in l), '?')
     files, cur = {}, None
@@ -139,40 +188,52 @@ def main():
             cur = m.group(1)
         elif 'rules.' in l and cur:
             files.setdefault(cur, []).append(l.rsplit('.', 1)[-1].strip())
-    HI = {'routes/login.ts': 'F01 — SQL injection', 'routes/basket.ts': 'F02 — IDOR / NoSQLi',
-          'lib/insecurity.ts': 'liên quan F01 — MD5 không salt'}
-    ov = [('cmd', 'semgrep scan --config owasp-top-ten.yml --config nodejsscan.yml routes/ lib/   # toàn bộ mã chưa vá'),
-          ('out', f'{count} Code Findings trên {len(files)} tệp — rút gọn:')]
+    HI = {'routes/login.ts': 'F01 SQL injection — xác nhận',
+          'routes/basket.ts': 'cảnh báo NoSQLi (CWE-943) — gợi ý rà; IDOR xác nhận bằng test A/B (5.2)',
+          'lib/insecurity.ts': 'MD5 không salt (CWE-327) — rủi ro còn lại, ngoài F01'}
+    ov = [('cmd', 'semgrep scan --config owasp-top-ten.yml --config nodejsscan.yml routes/ lib/   # mã chưa vá'),
+          ('out', f'{count} Code Findings trên {len(files)} tệp (CẢNH BÁO công cụ, chưa phải {count} lỗ hổng đã xác nhận) — rút gọn:')]
     for f in sorted(files, key=lambda x: (x not in HI, x)):
-        rz = ', '.join(sorted(set(files[f])))[:70]
-        if f in HI:
-            ov.append(('hl', f'  {f:<24} {rz}   <= {HI[f]}'))
-        else:
-            ov.append(('out', f'  {f:<24} {rz}'))
-    ov.append(('ok', f'=> Semgrep ra {count} findings; báo cáo chọn F01 (login.ts) và F02 (basket.ts) để phân tích & vá.'))
-    render(SHOTS / 'semgrep-overview.png', 'Windows PowerShell — Semgrep (SAST) quét toàn bộ mã nguồn', ov)
-    render(SHOTS / 'semgrep-scan.png', 'Windows PowerShell — Semgrep: ba lỗi nhóm phân tích', [
-        ('cmd', 'semgrep scan --config owasp-top-ten.yml --config nodejsscan.yml routes/login.ts routes/basket.ts lib/insecurity.ts'),
-        ('hl', '  routes/login.ts     express-sequelize-injection -> SQL injection (F01)'),
-        ('hl', '  routes/basket.ts    node_nosqli_injection -> truy vấn không ràng buộc chủ sở hữu (F02)'),
-        ('hl', '  lib/insecurity.ts   node_md5 -> mật khẩu băm MD5 không salt (CWE-327, giới hạn còn lại của F01)'),
-        ('ok', '=> Ba điểm trên là phạm vi báo cáo xử lý; các finding còn lại ngoài phạm vi.'),
-    ])
+        rz = ', '.join(sorted(set(files[f])))[:66]
+        ov.append(('hl', f'  {f:<22} {rz}   <= {HI[f]}') if f in HI else ('out', f'  {f:<22} {rz}'))
+    ov.append(('note', f'=> exit {sgrc}: semgrep scan không tự chặn (cần --error). Đây là bước PHÁT HIỆN;'))
+    ov.append(('note', '   báo cáo chọn F01 (login.ts) để vá; cảnh báo basket.ts chỉ là gợi ý rà, xem 5.2.'))
+    render(SHOTS / 'semgrep-overview.png', 'Windows PowerShell — Semgrep (SAST) quét toàn bộ mã nguồn chưa vá', ov,
+           evid_id='semgrep-overview', rc=sgrc)
 
-    # 5) Conftest (Policy as Code) quét Dockerfile.vulnerable -> chặn
-    cfail = sh(*CF, 'test', 'Dockerfile.vulnerable', '--parser', 'dockerfile', '-p', 'policy', '--namespace', 'dockerfile', '--no-color')
+    # semgrep-scan.png: lấy ĐÚNG cảnh báo thật của 3 tệp trong phạm vi + khối phân loại của nhóm (ghi rõ)
+    def rules_of(fn):
+        return ', '.join(sorted(set(files.get(fn, [])))) or '(không có)'
+    render(SHOTS / 'semgrep-scan.png', 'Windows PowerShell — Semgrep: ba điểm trong phạm vi báo cáo', [
+        ('cmd', 'semgrep ... routes/login.ts routes/basket.ts lib/insecurity.ts   # trích từ lần quét trên'),
+        ('out', 'Cảnh báo Semgrep (nguyên văn rule) tại ba tệp phạm vi:'),
+        ('hl', f'  routes/login.ts     {rules_of("routes/login.ts")}'),
+        ('hl', f'  routes/basket.ts    {rules_of("routes/basket.ts")}'),
+        ('hl', f'  lib/insecurity.ts   {rules_of("lib/insecurity.ts")}'),
+        ('out', ''),
+        ('note', 'Phân loại của nhóm (không phải output công cụ):'),
+        ('out', '  F01  login.ts    SQL injection — Semgrep chỉ đúng dòng, xác nhận bằng test + đọc mã.'),
+        ('out', '  F02  basket.ts   rule NoSQLi/CWE-943 là gợi ý vị trí; KHÔNG kết luận IDOR theo loại'),
+        ('out', '                   lỗi công cụ báo — IDOR xác nhận độc lập bằng test A/B (token A đọc giỏ B).'),
+        ('out', '  --   insecurity.ts  MD5 không salt — rủi ro lưu trữ còn lại, nằm ngoài phạm vi F01.'),
+    ], evid_id='semgrep-overview', rc=sgrc)
+
+    # 5) Conftest (Policy as Code) quét Dockerfile.vulnerable -> gate chặn khi exit != 0 (đúng kỳ vọng)
+    cfail, rc = run('conftest-fail', 'conftest test Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile',
+                    CF + ['test', 'Dockerfile.vulnerable', '--parser', 'dockerfile', '-p', 'policy',
+                          '--namespace', 'dockerfile', '--no-color'], tool='conftest')
+    lines = [l for l in cfail.split('\n') if l.startswith(('FAIL', 'WARN'))]
     groups = sorted({l.split(':')[0].split(' - ')[-1] for l in cfail.split('\n') if l.startswith('FAIL')})
-    summ = next((l for l in cfail.split('\n') if 'failures' in l), '')
-    render(SHOTS / 'conftest-fail.png', 'Windows PowerShell — Conftest quét Dockerfile.vulnerable (Policy as Code)', [
-        ('cmd', 'conftest test Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile'),
-        ('out', 'FAIL - LEAST-PRIVILEGE: final stage has no USER instruction; container runs as root'),
-        ('out', "FAIL - ATTACK-SURFACE: EXPOSE '22'/'3306' covers administrative/database port"),
-        ('out', "FAIL - SECRET-IN-IMAGE: ENV 'API_TOKEN' hardcodes a credential into the image"),
-        ('out', "FAIL - SUPPLY-CHAIN: missing provenance label org.opencontainers.image.source/revision"),
-        ('out', 'WARN - SUPPLY-CHAIN: base image node:22-alpine is not pinned by digest'),
-        ('out', summ),
-        ('ok', f'=> Gate chặn: {", ".join(groups)}.'),
-    ])
+    summ_line = next((l for l in cfail.split('\n') if 'failures' in l), '')
+    blocks = [('cmd', 'conftest test Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile')]
+    for l in lines:
+        blocks.append((('fail' if l.startswith('FAIL') else 'out'), l))
+    blocks.append(('out', summ_line))
+    gate = (f'=> exit {rc}: gate CHẶN phát hành — {len(groups)} nhóm luật vi phạm ({", ".join(groups)}). Đúng kỳ vọng với fixture lỗi.'
+            if rc != 0 else f'=> exit {rc}: không có vi phạm (không kỳ vọng với fixture lỗi) — xem log.')
+    blocks.append((('fail' if rc != 0 else 'ok'), gate))
+    render(SHOTS / 'conftest-fail.png', 'Windows PowerShell — Conftest quét Dockerfile.vulnerable (Policy as Code)', blocks,
+           evid_id='conftest-fail', rc=rc)
 
 
 if __name__ == '__main__':

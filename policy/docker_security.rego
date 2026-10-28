@@ -2,11 +2,12 @@
 # Mỗi luật đặt tại điểm thực thi đúng thay vì các "original check" dễ bị qua mặt:
 #   Least privilege  -> USER ở STAGE CUỐI, UID số, không phải root (thay vì "có USER bất kỳ trong file")
 #   Firewall/RBAC    -> cổng quản trị/DB không được EXPOSE (giảm bề mặt tấn công)
-#   Supply chain     -> provenance khai báo (nhãn OCI source+revision, SLSA L1) + không :latest, không ADD, cảnh báo base chưa ghim digest
+#   Supply chain     -> metadata nguồn gốc (nhãn OCI source+revision; hỗ trợ truy vết, CHƯA đánh giá đạt SLSA) + không :latest, không ADD, cảnh báo base chưa ghim digest
 #   Secret hygiene   -> KHÔNG nhúng bí mật (ENV/ARG) vào image (cải tiến của nhóm, ngoài bản mẫu lab)
 # Mỗi thông báo vi phạm trích sẵn điều khoản chuẩn áp dụng — quốc tế (CIS Docker, PCI-DSS, NIST, OCI/SLSA)
-# và Việt Nam (Nghị định 13/2023/NĐ-CP Điều 26 — biện pháp kỹ thuật bảo vệ dữ liệu cá nhân; Luật An toàn
-# thông tin mạng 2015 Điều 19 — biện pháp bảo đảm an toàn thông tin cá nhân, tuân thủ tiêu chuẩn kỹ thuật).
+# và Việt Nam (Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15 Điều 3 — nguyên tắc bảo mật, an toàn; Nghị định
+# 356/2025/NĐ-CP quy định chi tiết, hiệu lực 01/01/2026 thay Nghị định 13/2023; Luật An toàn thông tin mạng
+# 2015 Điều 19 — biện pháp kỹ thuật bảo đảm an toàn thông tin cá nhân, tuân thủ tiêu chuẩn kỹ thuật).
 #   chạy: conftest test <Dockerfile> -p policy/ --namespace dockerfile
 package dockerfile
 
@@ -17,7 +18,9 @@ forbidden_ports := {"22", "23", "2375", "2376", "3306", "5432", "6379", "27017"}
 
 required_labels := {"org.opencontainers.image.source", "org.opencontainers.image.revision"}
 
-root_names := {"root", "0", "root:root", "0:0"}
+# UID là phần trước dấu ':' trong 'USER uid[:gid]'. Nhận diện root ('0' hoặc 'root') bất kể group kèm theo,
+# nên 'USER 0:1000' vẫn bị bắt là root (trước đây lọt vì chỉ so khớp nguyên chuỗi).
+uid_of(u) := split(u, ":")[0]
 
 # Chỉ STAGE CUỐI tạo ra image chạy thật; USER ở stage builder không áp dụng cho runtime.
 final_stage := max([ins.Stage | some ins in input])
@@ -29,17 +32,17 @@ last_user := final_users[count(final_users) - 1] if count(final_users) > 0
 # LEAST-PRIVILEGE ------------------------------------------------------------
 deny contains msg if {
 	count(final_users) == 0
-	msg := "LEAST-PRIVILEGE: final stage has no USER instruction; container runs as root. (CIS Docker 4.1; PCI-DSS 2.2; NIST SP 800-190; NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19)"
+	msg := "LEAST-PRIVILEGE: final stage has no explicit USER; policy requires an explicit non-root USER (otherwise the container may run as root). (CIS Docker 4.1; PCI-DSS 2.2; NIST SP 800-190; Luật 91/2025/QH15 Đ.3; Luật ATTTM 2015 Đ.19)"
 }
 
 deny contains msg if {
-	last_user in root_names
-	msg := sprintf("LEAST-PRIVILEGE: final USER '%s' is root. (CIS Docker 4.1; PCI-DSS 2.2; NĐ 13/2023 Đ.26)", [last_user])
+	uid_of(last_user) in {"root", "0"}
+	msg := sprintf("LEAST-PRIVILEGE: final USER '%s' runs as root (UID 0), regardless of group. (CIS Docker 4.1; PCI-DSS 2.2; NĐ 356/2025/NĐ-CP; Luật 91/2025/QH15 Đ.3)", [last_user])
 }
 
 warn contains msg if {
 	last_user
-	not last_user in root_names
+	not uid_of(last_user) in {"root", "0"}
 	not regex.match(`^[0-9]+(:[0-9]+)?$`, last_user)
 	msg := sprintf("LEAST-PRIVILEGE: final USER '%s' is not a fixed numeric UID. (CIS Docker 4.1)", [last_user])
 }
@@ -61,7 +64,7 @@ label_blob := concat(" ", [concat(" ", ins.Value) | some ins in input; ins.Cmd =
 deny contains msg if {
 	some req in required_labels
 	not contains(label_blob, req)
-	msg := sprintf("SUPPLY-CHAIN: missing provenance label '%s' (declared provenance for traceability). (OCI image-spec; SLSA Provenance L1; NIST SSDF)", [req])
+	msg := sprintf("SUPPLY-CHAIN: missing provenance label '%s' (metadata nguồn gốc hỗ trợ truy vết; chưa đánh giá đạt mức SLSA). (OCI image-spec; NIST SSDF)", [req])
 }
 
 # SUPPLY-CHAIN — base image (không :latest/ADD, ghim digest) -----------------
@@ -69,7 +72,7 @@ deny contains msg if {
 	some ins in input
 	ins.Cmd == "from"
 	endswith(ins.Value[0], ":latest")
-	msg := sprintf("SUPPLY-CHAIN: base image '%s' uses :latest; pin a version or digest. (CIS Docker 4.5; SLSA)", [ins.Value[0]])
+	msg := sprintf("SUPPLY-CHAIN: base image '%s' uses :latest; pin a version or digest. (CIS Docker Benchmark §4 Container Images; NIST SSDF)", [ins.Value[0]])
 }
 
 deny contains msg if {
@@ -83,7 +86,7 @@ warn contains msg if {
 	ins.Cmd == "from"
 	not contains(ins.Value[0], "@sha256:")
 	not endswith(ins.Value[0], ":latest")
-	msg := sprintf("SUPPLY-CHAIN: base image '%s' is not pinned by digest. (CIS Docker 4.5; SLSA)", [ins.Value[0]])
+	msg := sprintf("SUPPLY-CHAIN: base image '%s' is not pinned by digest (digest pin khác với Content Trust/CIS 4.5). (CIS Docker Benchmark §4; NIST SSDF)", [ins.Value[0]])
 }
 
 # SECRET-IN-IMAGE — cải tiến của nhóm (ngoài bản mẫu lab) --------------------
@@ -100,7 +103,7 @@ deny contains msg if {
 	i + 1 < count(ins.Value)
 	regex.match(secret_key, key)
 	ins.Value[i + 1] != ""
-	msg := sprintf("SECRET-IN-IMAGE: ENV '%s' hardcodes a credential into the image (exposed via docker history); use build secrets/runtime env. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 13/2023 Đ.26)", [key])
+	msg := sprintf("SECRET-IN-IMAGE: ENV '%s' hardcodes a credential into the image (exposed via docker history); use build secrets/runtime env. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 356/2025/NĐ-CP; Luật 91/2025/QH15 Đ.3)", [key])
 }
 
 deny contains msg if {
@@ -110,5 +113,5 @@ deny contains msg if {
 	contains(tok, "=")
 	regex.match(secret_key, split(tok, "=")[0])
 	split(tok, "=")[1] != ""
-	msg := sprintf("SECRET-IN-IMAGE: ARG '%s' bakes a credential default into the image. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 13/2023 Đ.26)", [split(tok, "=")[0]])
+	msg := sprintf("SECRET-IN-IMAGE: ARG '%s' bakes a credential default into the image. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 356/2025/NĐ-CP; Luật 91/2025/QH15 Đ.3)", [split(tok, "=")[0]])
 }

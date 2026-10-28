@@ -5,7 +5,7 @@ import rego.v1
 # Input: file docker-compose (conftest tự đọc YAML).
 # ports chấp nhận cả 3 dạng của Compose: "127.0.0.1:3102:8080", 3000, {target, published, host_ip}.
 # Thông báo vi phạm trích điều khoản chuẩn quốc tế (GDPR, PCI-DSS, CIS Docker) và Việt Nam
-# (Nghị định 13/2023/NĐ-CP Điều 26; Luật An toàn thông tin mạng 2015 Điều 19).
+# (Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15 Điều 3 và Nghị định 356/2025/NĐ-CP; Luật An toàn thông tin mạng 2015 Điều 19).
 
 host_ip(p) := split(p, ":")[0] if {
 	is_string(p)
@@ -32,7 +32,7 @@ deny contains msg if {
 	some name, svc in input.services
 	count(ports(svc)) > 0
 	not edge(svc)
-	msg := sprintf("[F03 NET-02] service '%s' publishes ports but is not an edge service (label lab.exposure=edge); backend must only be reachable through the proxy (Luật ATTTM 2015 Đ.19; NĐ 13/2023 Đ.26)", [name])
+	msg := sprintf("[F03 NET-02] service '%s' publishes ports but is not an edge service (label lab.exposure=edge); backend must only be reachable through the proxy (Luật ATTTM 2015 Đ.19; NĐ 356/2025/NĐ-CP; Luật 91/2025 Đ.3)", [name])
 }
 
 # NET-01 (GDPR Art.32): cổng publish chỉ được bind loopback trong lab.
@@ -40,7 +40,7 @@ deny contains msg if {
 	some name, svc in input.services
 	some p in ports(svc)
 	host_ip(p) != "127.0.0.1"
-	msg := sprintf("[GDPR Art.32 NET-01] service '%s' publishes %v on all interfaces (NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19)", [name, p])
+	msg := sprintf("[GDPR Art.32 NET-01] service '%s' publishes %v on all interfaces (NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Đ.19)", [name, p])
 }
 
 deny contains msg if {
@@ -67,7 +67,7 @@ deny contains msg if {
 	some name, svc in input.services
 	some e in env(svc)
 	regex.match(`(?i)^[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)=.+`, e)
-	msg := sprintf("[PCI-DSS 8.2.1 / GDPR Art.32 / NĐ 13/2023 Đ.26] service '%s' has an inline secret in environment: %s", [name, split(e, "=")[0]])
+	msg := sprintf("[PCI-DSS 8.2.1 / GDPR Art.32 / NĐ 356/2025/NĐ-CP] service '%s' has an inline secret in environment: %s", [name, split(e, "=")[0]])
 }
 
 drops_all_caps(svc) if "ALL" in object.get(svc, "cap_drop", [])

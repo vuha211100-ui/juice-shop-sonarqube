@@ -43,6 +43,15 @@ DATE = 'Năm học 2026'
 
 FIG_MAP = {}
 
+
+def expand_includes(md):
+    """!include[relpath] -> nội dung file bọc trong khối mã (giữ phụ lục luôn đồng bộ với file thật)."""
+    def repl(m):
+        p = ROOT / m.group(1).strip()
+        return '```\n' + p.read_text(encoding='utf-8').rstrip('\n') + '\n```'
+    return re.sub(r'^!include\[([^\]]+)\]\s*$', repl, md, flags=re.M)
+
+
 INLINE_RE = re.compile(r'(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*|\[[^\]]+\]\(https?://[^)]+\)|https?://[^\s)]+)')
 
 
@@ -170,11 +179,14 @@ def field(p, instr, placeholder=''):
 
 def build():
     global FIG_MAP
-    md = SRC.read_text(encoding='utf-8')
+    md = expand_includes(SRC.read_text(encoding='utf-8'))
     FIG_MAP = {pathlib.Path(m.group(1)).stem: i
                for i, m in enumerate(re.finditer(r'!fig\[([^\]]+)\]', md), 1)}
 
     doc = Document()
+    # cho Word tự cập nhật mục lục khi mở (không cần hướng dẫn Ctrl+A/F9 thủ công)
+    upd = OxmlElement('w:updateFields'); upd.set(qn('w:val'), 'true')
+    doc.settings.element.append(upd)
     normal = doc.styles['Normal']
     normal.font.name = BODY_FONT
     normal.font.size = Pt(13)
@@ -216,7 +228,7 @@ def build():
 
     # ----- mục lục -----
     h = doc.add_paragraph(); r = h.add_run('Mục lục'); r.bold = True; r.font.size = Pt(16); r.font.color.rgb = NAVY
-    field(doc.add_paragraph(), 'TOC \\o "1-2" \\h \\z \\u', 'Bấm Ctrl+A rồi F9 để cập nhật mục lục.')
+    field(doc.add_paragraph(), 'TOC \\o "1-2" \\h \\z \\u', 'Mục lục tự cập nhật khi mở tài liệu.')
     doc.add_page_break()
 
     # ----- thân -----

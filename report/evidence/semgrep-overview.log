@@ -1,0 +1,373 @@
+# EVIDENCE semgrep-overview
+# command : semgrep scan --config owasp-top-ten.yml --config nodejsscan.yml routes/ lib/
+# argv    : docker run --rm -e SEMGREP_SEND_METRICS=off -v C:/Users/admin/AppData/Local/Temp/vuln-3f7gfh8i:/src:ro -v E:/banhoaqua/juice-shop/report/semgrep-rules:/rules:ro semgrep/semgrep:1.180.0 semgrep scan --metrics=off --config /rules/owasp-top-ten.yml --config /rules/nodejsscan.yml /src
+# cwd     : E:\banhoaqua\juice-shop
+# time    : 2026-10-28 22:46
+# commit  : f66c45f14
+# tool    : semgrep/semgrep:1.180.0
+# exit    : 0
+# ----- combined stdout+stderr -----
+                    
+                    
+┌──────────────────┐
+│ 38 Code Findings │
+└──────────────────┘
+                          
+    /src/lib/insecurity.ts
+    ❯❱ rules.ajinabraham.njsscan.crypto.crypto_node.node_md5
+          ❰❰ Blocking ❱❱
+          MD5 is a a weak hash which is known to have collision. Use a strong hashing function.
+          Details: https://sg.run/PxxW                                                         
+                                                                                               
+           41┆ export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
+   
+    ❯❱ rules.ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator
+          ❰❰ Blocking ❱❱
+          crypto.pseudoRandomBytes()/Math.random() is a cryptographically weak random number generator.
+          Details: https://sg.run/ABG8                                                                 
+                                                                                                       
+           53┆ export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
+   
+    ❯❱ rules.javascript.jsonwebtoken.security.jwt-hardcode.hardcoded-jwt-secret
+          ❰❰ Blocking ❱❱
+          A hard-coded credential was detected. It is not recommended to store credentials in source-code, as
+          this risks secrets being leaked and used by either an internal or external malicious adversary. It 
+          is recommended to use environment variables to securely provide credentials or retrieve credentials
+          from a secure vault or HSM (Hardware Security Module).                                             
+          Details: https://sg.run/4xN9                                                                       
+                                                                                                             
+           54┆ export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h',
+               algorithm: 'RS256' })                                                                
+                          
+    /src/routes/address.ts
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in findOne() function can result in NoSQL Injection.
+          Details: https://sg.run/0q35                                             
+                                                                                   
+           18┆ const address = await AddressModel.findOne({ where: { id: req.params.id, UserId:
+               req.body.UserId } })                                                            
+                         
+    /src/routes/basket.ts
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in findOne() function can result in NoSQL Injection.
+          Details: https://sg.run/0q35                                             
+                                                                                   
+           19┆ const basket = await BasketModel.findOne({ where: { id }, include: [{ model: ProductModel,
+               paranoid: false, as: 'Products' }] })                                                     
+                              
+    /src/routes/basketItems.ts
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in findOne() function can result in NoSQL Injection.
+          Details: https://sg.run/0q35                                             
+                                                                                   
+           68┆ const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+                          
+    /src/routes/captcha.ts
+    ❯❱ rules.ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator
+          ❰❰ Blocking ❱❱
+          crypto.pseudoRandomBytes()/Math.random() is a cryptographically weak random number generator.
+          Details: https://sg.run/ABG8                                                                 
+                                                                                                       
+           14┆ const firstTerm = Math.floor((Math.random() * 10) + 1)
+            ⋮┆----------------------------------------
+           15┆ const secondTerm = Math.floor((Math.random() * 10) + 1)
+            ⋮┆----------------------------------------
+           16┆ const thirdTerm = Math.floor((Math.random() * 10) + 1)
+            ⋮┆----------------------------------------
+           18┆ const firstOperator = operators[Math.floor((Math.random() * 3))]
+            ⋮┆----------------------------------------
+           19┆ const secondOperator = operators[Math.floor((Math.random() * 3))]
+   
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in findOne() function can result in NoSQL Injection.
+          Details: https://sg.run/0q35                                             
+                                                                                   
+           37┆ const captcha = await CaptchaModel.findOne({ where: { captchaId: req.body.captchaId } })
+                                 
+    /src/routes/changePassword.ts
+    ❯❱ rules.ajinabraham.njsscan.crypto.timing_attack_node.node_timing_attack
+          ❰❰ Blocking ❱❱
+          String comparisons using '===', '!==', '!=' and '==' is vulnerable to timing attacks. A timing      
+          attack allows the attacker to learn potentially sensitive information by, for example, measuring how
+          long it takes for the application to respond to a request.  More info:                              
+          https://nodejs.org/en/learn/getting-started/security-best-practices#information-exposure-through-   
+          timing-attacks-cwe-208                                                                              
+          Details: https://sg.run/BDR2                                                                        
+                                                                                                              
+           28┆ if (token === null) {
+           29┆   next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
+           30┆   return
+           31┆ }
+                              
+    /src/routes/dataErasure.ts
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in findOne() function can result in NoSQL Injection.
+          Details: https://sg.run/0q35                                             
+                                                                                   
+           36┆ const answer = await SecurityAnswerModel.findOne({
+           37┆   include: [{
+           38┆     model: UserModel,
+           39┆     where: { email }
+           40┆   }]
+           41┆ })
+                           
+    /src/routes/delivery.ts
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in findOne() function can result in NoSQL Injection.
+          Details: https://sg.run/0q35                                             
+                                                                                   
+           34┆ const method = await DeliveryModel.findOne({ where: { id: req.params.id } })
+                         
+    /src/routes/deluxe.ts
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in findOne() function can result in NoSQL Injection.
+          Details: https://sg.run/0q35                                             
+                                                                                   
+           19┆ const user = await UserModel.findOne({ where: { id: req.body.UserId, role:
+               security.roles.customer } })                                              
+            ⋮┆----------------------------------------
+           25┆ const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
+            ⋮┆----------------------------------------
+           35┆ const card = await CardModel.findOne({ where: { id: req.body.paymentId, UserId:
+               req.body.UserId } })                                                           
+                             
+    /src/routes/fileServer.ts
+    ❯❱ rules.javascript.express.security.audit.express-res-sendfile.express-res-sendfile
+          ❰❰ Blocking ❱❱
+          The application processes user-input, this is passed to res.sendFile which can allow an attacker to
+          arbitrarily read files on the system through path traversal. It is recommended to perform input    
+          validation in addition to canonicalizing the path. This allows you to validate the path against the
+          intended directory it should be accessing.                                                         
+          Details: https://sg.run/7DJk                                                                       
+                                                                                                             
+           32┆ res.sendFile(path.resolve('ftp/', file))
+                            
+    /src/routes/keyServer.ts
+    ❯❱ rules.javascript.express.security.audit.express-res-sendfile.express-res-sendfile
+          ❰❰ Blocking ❱❱
+          The application processes user-input, this is passed to res.sendFile which can allow an attacker to
+          arbitrarily read files on the system through path traversal. It is recommended to perform input    
+          validation in addition to canonicalizing the path. This allows you to validate the path against the
+          intended directory it should be accessing.                                                         
+          Details: https://sg.run/7DJk                                                                       
+                                                                                                             
+           14┆ res.sendFile(path.resolve('encryptionkeys/', file))
+                                     
+    /src/routes/likeProductReviews.ts
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in findOne() function can result in NoSQL Injection.
+          Details: https://sg.run/0q35                                             
+                                                                                   
+           25┆ const review = await db.reviewsCollection.findOne({ _id: id })
+            ⋮┆----------------------------------------
+           43┆ const updatedReview: Review = await db.reviewsCollection.findOne({ _id: id })
+                                
+    /src/routes/logfileServer.ts
+    ❯❱ rules.javascript.express.security.audit.express-res-sendfile.express-res-sendfile
+          ❰❰ Blocking ❱❱
+          The application processes user-input, this is passed to res.sendFile which can allow an attacker to
+          arbitrarily read files on the system through path traversal. It is recommended to perform input    
+          validation in addition to canonicalizing the path. This allows you to validate the path against the
+          intended directory it should be accessing.                                                         
+          Details: https://sg.run/7DJk                                                                       
+                                                                                                             
+           14┆ res.sendFile(path.resolve('logs/', file))
+                        
+    /src/routes/login.ts
+   ❯❯❱ rules.javascript.sequelize.security.audit.sequelize-injection-express.express-sequelize-injection
+          ❰❰ Blocking ❱❱
+          Detected a sequelize statement that is tainted by user-input. This could lead to SQL injection if   
+          the variable is user-controlled and is not properly sanitized. In order to prevent SQL injection, it
+          is recommended to use parameterized queries or prepared statements.                                 
+          Details: https://sg.run/gjoe                                                                        
+                                                                                                              
+           34┆ models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND
+               password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model:
+               UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge           
+               loginBenderChallenge loginJimChallenge                                                 
+                        
+    /src/routes/order.ts
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in findOne() function can result in NoSQL Injection.
+          Details: https://sg.run/0q35                                             
+                                                                                   
+           35┆ BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as:
+               'Products' }] })                                                                          
+            ⋮┆----------------------------------------
+          125┆ const deliveryMethodFromModel = await DeliveryModel.findOne({ where: { id:
+               req.body.orderDetails.deliveryMethodId } })                               
+            ⋮┆----------------------------------------
+          148┆ const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
+                          
+    /src/routes/payment.ts
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in findOne() function can result in NoSQL Injection.
+          Details: https://sg.run/0q35                                             
+                                                                                   
+           41┆ const card = await CardModel.findOne({ where: { id: req.params.id, UserId: req.body.UserId
+               } })                                                                                      
+                                   
+    /src/routes/quarantineServer.ts
+    ❯❱ rules.javascript.express.security.audit.express-res-sendfile.express-res-sendfile
+          ❰❰ Blocking ❱❱
+          The application processes user-input, this is passed to res.sendFile which can allow an attacker to
+          arbitrarily read files on the system through path traversal. It is recommended to perform input    
+          validation in addition to canonicalizing the path. This allows you to validate the path against the
+          intended directory it should be accessing.                                                         
+          Details: https://sg.run/7DJk                                                                       
+                                                                                                             
+           14┆ res.sendFile(path.resolve('ftp/quarantine/', file))
+                           
+    /src/routes/redirect.ts
+    ❯❱ rules.javascript.express.security.audit.express-open-redirect.express-open-redirect
+          ❰❰ Blocking ❱❱
+          The application redirects to a URL specified by user-supplied input `query` that is not validated. 
+          This could redirect users to malicious locations. Consider using an allow-list approach to validate
+          URLs, or warn users they are being redirected to a third-party website.                            
+          Details: https://sg.run/EpoP                                                                       
+                                                                                                             
+           18┆ res.redirect(toUrl)
+                         
+    /src/routes/search.ts
+   ❯❯❱ rules.javascript.sequelize.security.audit.sequelize-injection-express.express-sequelize-injection
+          ❰❰ Blocking ❱❱
+          Detected a sequelize statement that is tainted by user-input. This could lead to SQL injection if   
+          the variable is user-controlled and is not properly sanitized. In order to prevent SQL injection, it
+          is recommended to use parameterized queries or prepared statements.                                 
+          Details: https://sg.run/gjoe                                                                        
+                                                                                                              
+           23┆ models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR   
+               description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`) // vuln-code-
+               snippet vuln-line unionSqlInjectionChallenge dbSchemaChallenge                        
+                                     
+    /src/routes/showProductReviews.ts
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_injection.node_nosqli_js_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in MongoDB $where operator can result in NoSQL JavaScript Injection.
+          Details: https://sg.run/KzYX                                                             
+                                                                                                   
+           31┆ const id = !utils.isChallengeEnabled(challenges.noSqlCommandChallenge) ?
+               Number(req.params.id) : utils.trunc(req.params.id, 40)                  
+           32┆
+           33┆ // Measure how long the query takes, to check if there was a nosql dos attack
+           34┆ const t0 = new Date().getTime()
+           35┆
+           36┆ db.reviewsCollection.find({ $where: 'this.product == ' + id }).then((reviews: Review[]) =>
+               {                                                                                         
+           37┆   const t1 = new Date().getTime()
+           38┆   challengeUtils.solveIf(challenges.noSqlCommandChallenge, () => { return (t1 - t0) > 2000
+               })                                                                                        
+           39┆   const user = security.authenticatedUsers.from(req)
+           40┆   for (let i = 0; i < reviews.length; i++) {
+             [hid 8 additional lines, adjust with --max-lines-per-finding] 
+                             
+    /src/routes/trackOrder.ts
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_injection.node_nosqli_js_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in MongoDB $where operator can result in NoSQL JavaScript Injection.
+          Details: https://sg.run/KzYX                                                             
+                                                                                                   
+           15┆ const id = !utils.isChallengeEnabled(challenges.reflectedXssChallenge) ?      
+               String(req.params.id).replace(/[^\w-]+/g, '') : utils.trunc(req.params.id, 60)
+           16┆
+           17┆ challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return
+               id.includes('<iframe src="javascript:alert(`xss`)">') })               
+           18┆ db.ordersCollection.find({ $where: `this.orderId === '${id}'` }).then((order: any) => {
+           19┆   const result = utils.queryResultToJson(order)
+           20┆   challengeUtils.solveIf(challenges.noSqlOrdersChallenge, () => { return result.data.length
+               > 1 })                                                                                     
+           21┆   if (result.data[0] === undefined) {
+           22┆     result.data[0] = { orderId: id }
+           23┆   }
+           24┆   res.json(result)
+             [hid 3 additional lines, adjust with --max-lines-per-finding] 
+                              
+    /src/routes/userProfile.ts
+   ❯❯❱ rules.ajinabraham.njsscan.xss.xss_node.express_xss
+          ❰❰ Blocking ❱❱
+          Untrusted User Input in Response will result in Reflected Cross Site Scripting Vulnerability.
+          Details: https://sg.run/WxE4                                                                 
+                                                                                                       
+           34┆ const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
+           35┆ if (!loggedInUser) {
+           36┆   next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress)); return
+           37┆ }
+           38┆
+           39┆ let user: UserModel | null
+           40┆ try {
+           41┆   user = await UserModel.findByPk(loggedInUser.data.id)
+           42┆ } catch (error) {
+           43┆   next(error)
+             [hid 61 additional lines, adjust with --max-lines-per-finding] 
+   
+   ❯❯❱ rules.javascript.lang.security.audit.code-string-concat.code-string-concat
+          ❰❰ Blocking ❱❱
+          Found data from an Express or Next web request flowing to `eval`. If this data is user-controllable
+          this can lead to execution of arbitrary system commands in the context of your application process.
+          Avoid `eval` whenever possible.                                                                    
+          Details: https://sg.run/96Yk                                                                       
+                                                                                                             
+           65┆ username = eval(code) // eslint-disable-line no-eval
+                         
+    /src/routes/verify.ts
+   ❯❯❱ rules.ajinabraham.njsscan.generic.logic_bypass.node_logic_bypass
+          ❰❰ Blocking ❱❱
+          User controlled data is used for application business logic decision making. This expose protected
+          data or functionality.                                                                            
+          Details: https://sg.run/AB38                                                                      
+                                                                                                            
+           60┆ challengeUtils.solveIf(challenges.passwordRepeatChallenge, () => { return req.body &&
+               req.body.passwordRepeat !== req.body.password })                                     
+                         
+    /src/routes/wallet.ts
+   ❯❯❱ rules.ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection
+          ❰❰ Blocking ❱❱
+          Untrusted user input in findOne() function can result in NoSQL Injection.
+          Details: https://sg.run/0q35                                             
+                                                                                   
+           12┆ const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
+            ⋮┆----------------------------------------
+           24┆ const card = cardId ? await CardModel.findOne({ where: { id: cardId, UserId:
+               req.body.UserId } }) : null                                                 
+
+               
+               
+┌─────────────┐
+│ Scan Status │
+└─────────────┘
+  Scanning 86 files tracked by git with 674 Code rules:
+                                                                                                                        
+  Language      Rules   Files          Origin      Rules                                                                
+ ─────────────────────────────        ───────────────────                                                               
+  ts              185      86          Community     674                                                                
+  <multilang>       6      86                                                                                           
+                                                                                                                        
+Warning: 1 timeout error(s) in /src/lib/config.schema.ts when running the following rules:
+[rules.ajinabraham.njsscan.xss.xss_node.express_xss]
+                
+                
+┌──────────────┐
+│ Scan Summary │
+└──────────────┘
+✅ Scan completed successfully.
+ • Findings: 38 (38 blocking)
+ • Rules run: 191
+ • Targets scanned: 86
+ • Parsed lines: ~100.0%
+ • No ignore information available
+Ran 191 rules on 86 files: 38 findings.
+
+A new version of Semgrep is available. See https://semgrep.dev/docs/upgrading
+
+📢 Too many findings? Try Semgrep Pro for more powerful queries and less noise.
+   See https://sg.run/false-positives.

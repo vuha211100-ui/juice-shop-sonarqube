@@ -60,6 +60,14 @@ def img_data_uri(name):
     return f'data:image/{mime};base64,' + base64.b64encode(p.read_bytes()).decode()
 
 
+def expand_includes(md):
+    """!include[relpath] -> nội dung file bọc trong khối mã (giữ phụ lục luôn đồng bộ với file thật)."""
+    def repl(m):
+        p = ROOT / m.group(1).strip()
+        return '```\n' + p.read_text(encoding='utf-8').rstrip('\n') + '\n```'
+    return re.sub(r'^!include\[([^\]]+)\]\s*$', repl, md, flags=re.M)
+
+
 def slug(t, i):
     s = re.sub(r'[^a-z0-9]+', '-', t.lower()).strip('-')
     return f's{i}-{s}'[:60]
@@ -169,7 +177,7 @@ def convert(md):
 
 
 def build():
-    md = SRC.read_text(encoding='utf-8')
+    md = expand_includes(SRC.read_text(encoding='utf-8'))
     global FIG_MAP
     FIG_MAP = {pathlib.Path(m.group(1)).stem: i
                for i, m in enumerate(re.finditer(r'!fig\[([^\]]+)\]', md), 1)}

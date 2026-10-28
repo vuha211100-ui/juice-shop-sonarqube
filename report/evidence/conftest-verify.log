@@ -1,0 +1,11 @@
+# EVIDENCE conftest-verify
+# command : conftest verify -p policy
+# argv    : docker run --rm -v E:/banhoaqua/juice-shop:/work:ro -w /work openpolicyagent/conftest:v0.71.1 verify -p policy --no-color
+# cwd     : E:\banhoaqua\juice-shop
+# time    : 2026-10-28 22:46
+# commit  : f66c45f14
+# tool    : openpolicyagent/conftest:v0.71.1
+# exit    : 0
+# ----- combined stdout+stderr -----
+
+19 tests, 19 passed, 0 warnings, 0 failures, 0 exceptions, 0 skipped

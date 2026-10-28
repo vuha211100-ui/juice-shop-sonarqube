@@ -43,7 +43,7 @@ Table: Thành phần của ứng dụng Juice Shop
 | Giám sát | prom-client, endpoint `/metrics` | Xuất chỉ số dạng Prometheus |
 | Đóng gói | Docker image distroless, chạy UID 65532 | Triển khai bằng container |
 
-Cả bốn lỗi được phân tích đều gắn với những thành phần này: REST API và ORM (F01, F02), endpoint giám sát (F03) cùng cách đóng gói container (F04). Yêu cầu bảo vệ dữ liệu được xác định theo GDPR (nguyên tắc ở Điều 5, nghĩa vụ an toàn ở Điều 32) và PCI-DSS cho dữ liệu thẻ thanh toán. Song song với khung quốc tế, báo cáo còn đối chiếu pháp luật Việt Nam, gồm **Nghị định 13/2023/NĐ-CP** về bảo vệ dữ liệu cá nhân và **Luật An toàn thông tin mạng 2015** (chi tiết ở mục 3.2).
+Cả bốn lỗi được phân tích đều gắn với những thành phần này: REST API và ORM (F01, F02), endpoint giám sát (F03) cùng cách đóng gói container (F04). Yêu cầu bảo vệ dữ liệu được xác định theo GDPR (nguyên tắc ở Điều 5, nghĩa vụ an toàn ở Điều 32) và PCI-DSS cho dữ liệu thẻ thanh toán. Song song với khung quốc tế, báo cáo đối chiếu pháp luật Việt Nam **hiện hành tại thời điểm lập báo cáo (tháng 10/2026)**: **Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15** và **Nghị định 356/2025/NĐ-CP** (cùng hiệu lực 01/01/2026, thay thế Nghị định 13/2023/NĐ-CP), cùng **Luật An toàn thông tin mạng 2015** (chi tiết ở mục 3.2).
 
 Table: Dữ liệu cần bảo vệ và cơ sở chính sách
 | Dữ liệu | Yêu cầu bảo vệ | Cơ sở chính sách |
@@ -52,7 +52,7 @@ Table: Dữ liệu cần bảo vệ và cơ sở chính sách
 | Mật khẩu | Không để lộ; không bị vượt xác thực | GDPR Điều 32(1)(b) |
 | Token phiên (JWT) | Chỉ cấp khi xác thực đúng | GDPR Điều 32(1)(b) |
 | Giỏ hàng | Ràng buộc chủ sở hữu ở mọi truy vấn | GDPR Điều 5(1)(f), 25(2) |
-| Thẻ thanh toán | Không lưu/không lộ số thẻ đầy đủ | PCI-DSS 3.4; GDPR Điều 32 |
+| Thẻ thanh toán | Không lộ số thẻ; PAN nếu lưu phải ở dạng không đọc được | PCI-DSS 3.4; GDPR Điều 32 |
 
 Ý nghĩa cụ thể của từng điều khoản (GDPR, PCI-DSS… và các chuẩn khác) được tóm gọn trong **Phụ lục C**.
 
@@ -74,7 +74,7 @@ Table: Kiểm soát an toàn tối thiểu
 | Giảm bề mặt mạng | Chỉ reverse proxy publish cổng, chỉ trên 127.0.0.1; backend ở mạng internal | GDPR Điều 32 |
 | Không chạy root | Juice Shop UID 65532, Nginx UID 101 | CIS Docker 4.1 |
 | Đặc quyền tối thiểu | `cap_drop: ALL`, `no-new-privileges`, filesystem chỉ đọc nơi được | CIS Docker 5.3/5.12 |
-| Ghim phiên bản | Luật Rego chặn `:latest`, cảnh báo khi base image chưa ghim digest | CIS Docker 4.5 |
+| Ghim phiên bản | Luật Rego chặn `:latest`, cảnh báo khi base image chưa ghim digest | CIS Docker Benchmark §4 |
 | Lọc đường vào | Nginx chặn /metrics, giới hạn 5 lần đăng nhập/phút | GDPR Điều 32 |
 
 Những kiểm soát này được **xác minh ngay trên container đang chạy** bằng `docker inspect` (Compliance as Code), cho thấy chúng thực sự có hiệu lực chứ không chỉ nằm trên file cấu hình:
@@ -90,7 +90,7 @@ Table: Công cụ và vai trò
 |---|---|---|
 | Docker, Docker Compose | Nền tảng container | Triển khai ứng dụng và môi trường kiểm thử |
 | Nginx | Reverse proxy | Chặn /metrics, giới hạn tốc độ đăng nhập (F03) |
-| Semgrep | SAST (phân tích tĩnh) | Đọc mã nguồn (không chạy), chỉ ra dòng lỗi F01/F02 — bước *tìm ra* lỗi |
+| Semgrep | SAST (phân tích tĩnh) | Đọc mã nguồn (không chạy), chỉ đúng dòng F01; với F02 chỉ đưa *cảnh báo NoSQLi* làm gợi ý vị trí, IDOR xác nhận riêng bằng kiểm thử (xem 5.2) |
 | Gitleaks | Quét secret | Tìm khóa/bí mật lộ trong mã nguồn |
 | node:test (Supertest) | Kiểm thử động | Chạy ứng dụng thật, tái hiện lỗi *trước khi vá* (đỏ) và kiểm chứng *sau khi vá* (xanh) |
 | Conftest / OPA (Rego) | Policy as Code | Kiểm tra Dockerfile và cấu hình triển khai (F03/F04) |
@@ -104,16 +104,19 @@ Các phát hiện được đối chiếu với những chính sách và tiêu c
 **Quốc tế:**
 
 - **GDPR** (Regulation (EU) 2016/679): khung bảo vệ dữ liệu cá nhân; dùng các Điều 5 (nguyên tắc), 25 (bảo vệ ngay từ thiết kế) và 32 (an toàn khi xử lý) làm cơ sở đánh giá dữ liệu cần bảo vệ.
-- **PCI-DSS v3.2.1**: chuẩn an toàn dữ liệu thẻ thanh toán; Yêu cầu 3.4 (không lưu/không lộ số thẻ đầy đủ), 8.2.1 (không lưu credential ở dạng đọc được), 2.2 (cấu hình an toàn, đặc quyền tối thiểu). *Báo cáo dùng nhất quán đánh số theo v3.2.1* — ở PCI-DSS v4.0 các số này thay đổi (ví dụ 3.4 → 3.5.1).
+- **PCI-DSS v3.2.1**: chuẩn an toàn dữ liệu thẻ thanh toán; Yêu cầu 3.4 (PAN nếu lưu phải ở dạng không đọc được), 8.2.1 (không lưu credential ở dạng đọc được), 2.2 (cấu hình an toàn, đặc quyền tối thiểu). PCI SSC đã cho v3.2.1 *nghỉ từ 31/3/2024*; báo cáo trích v3.2.1 như **đối chiếu lịch sử** bám theo tài liệu môn học (bản hiện hành là v4.0.1, các số điều có thay đổi, ví dụ 3.4 → 3.5.1).
 - **OWASP Top 10 2021 & CWE**: phân loại loại lỗi — A03 Injection/CWE-89 (F01), A01 Broken Access Control/CWE-639 (F02).
-- **CIS Docker Benchmark**: chuẩn cấu hình container an toàn — các mục 4.1, 4.5, 4.9, 4.10, 5.8 dùng cho F04.
-- **SLSA / OCI image-spec / NIST SP 800-190**: nguồn gốc, toàn vẹn image và an toàn container (F04).
+- **CIS Docker Benchmark**: chuẩn cấu hình container an toàn — mục 4.1 (non-root), 4.9 (COPY thay ADD), 4.10 (không nhúng secret), 5.8 (hạn chế cổng) dùng cho F04. *Lưu ý:* mục 4.5 là **Content Trust** (bật chữ ký số ảnh) — khác với *ghim digest*; việc ghim digest/tránh `:latest` thuộc nhóm quản lý ảnh nền (§4), không phải 4.5.
+- **OCI image-spec / NIST SP 800-190 / NIST SSDF (SP 800-218) / SLSA**: định dạng và metadata nguồn gốc image, an toàn container và chuỗi cung ứng phần mềm (F04). Báo cáo dùng các khung này để *tham chiếu*, không tuyên bố đạt mức cụ thể (ví dụ SLSA).
 
 **Việt Nam:**
 
-- **Nghị định 13/2023/NĐ-CP** về bảo vệ dữ liệu cá nhân (hiệu lực 01/7/2023): **Điều 3** — 8 nguyên tắc (trong đó có nguyên tắc *bảo mật, an toàn*); **Điều 26** — biện pháp bảo vệ dữ liệu cá nhân gồm biện pháp *quản lý* và *kỹ thuật*, áp dụng ngay từ đầu và suốt quá trình xử lý; **Điều 27** — bảo vệ dữ liệu cá nhân cơ bản. Tương ứng GDPR Điều 5/25/32.
-- **Luật An toàn thông tin mạng 2015 (86/2015/QH13)**: **Điều 16** — nguyên tắc bảo vệ thông tin cá nhân; **Điều 17** — không cung cấp/chia sẻ thông tin cá nhân cho bên thứ ba khi chưa được đồng ý (liên quan F02/F03); **Điều 19** — bảo đảm an toàn thông tin cá nhân trên mạng bằng biện pháp quản lý, kỹ thuật và *tuân thủ tiêu chuẩn, quy chuẩn kỹ thuật*.
+- **Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15** (Quốc hội thông qua 26/6/2025, **hiệu lực 01/01/2026**): **Điều 3** — nguyên tắc bảo vệ dữ liệu cá nhân (hợp pháp, đúng mục đích, chính xác, *bảo mật – an toàn*). Đây là văn bản luật hiện hành, nâng khung bảo vệ dữ liệu cá nhân từ cấp nghị định lên cấp luật. Tương ứng GDPR Điều 5.
+- **Nghị định 356/2025/NĐ-CP** (hiệu lực 01/01/2026, **thay thế Nghị định 13/2023/NĐ-CP**): quy định chi tiết biện pháp bảo vệ dữ liệu cá nhân gồm biện pháp *quản lý* và *kỹ thuật* (mã hóa, xác thực nhiều yếu tố, kiểm soát truy cập, giám sát liên tục, đánh giá an toàn định kỳ), trong đó **Điều 12** nêu bảo vệ dữ liệu cá nhân trong *điện toán đám mây* — liên quan trực tiếp khâu triển khai container (F03/F04). Tương ứng GDPR Điều 25/32.
+- **Luật An toàn thông tin mạng 2015 (86/2015/QH13)** (còn hiệu lực): **Điều 16** — nguyên tắc bảo vệ thông tin cá nhân; **Điều 17** — không chia sẻ thông tin cá nhân cho bên thứ ba khi chưa được đồng ý (liên quan F02/F03); **Điều 19** — bảo đảm an toàn thông tin cá nhân bằng biện pháp quản lý, kỹ thuật và *tuân thủ tiêu chuẩn, quy chuẩn kỹ thuật*.
 - **TCVN 11930:2017** — tiêu chuẩn kỹ thuật quốc gia *Yêu cầu cơ bản về an toàn hệ thống thông tin theo cấp độ*, làm cơ sở kỹ thuật cho cấu hình triển khai tối thiểu (F03/F04).
+
+Nghị định 13/2023/NĐ-CP (tiền nhiệm) hết hiệu lực từ 01/01/2026 nên không dùng làm khung hiện hành. Với dữ liệu giả lập của ứng dụng huấn luyện, báo cáo dùng cách diễn đạt *"đối chiếu nguyên tắc bảo vệ"* thay cho kết luận vi phạm pháp luật hay chứng nhận tuân thủ.
 
 Ý nghĩa cụ thể (**yêu cầu gì**) của mỗi điều khoản tham chiếu được tóm gọn trong **Phụ lục C** (bảng tra). Phần thân chỉ ghi mã điều khoản trong các bảng và các mục, còn ý nghĩa thì tra ở Phụ lục C.
 
@@ -123,7 +126,7 @@ Việc phát hiện và chống tái diễn cả bốn lỗi đều được vi�
 
 !fig[devsecops-pipeline.png](Quy trình DevSecOps: ánh xạ bốn lỗi F01–F04 và các cổng kiểm soát theo từng pha; Security as Code cho F01/F02, Policy as Code cho F03/F04){width=16}
 
-Hai nhóm kiểm soát trong hình:
+Ba lớp kiểm soát trong hình:
 
 - **Security as Code:** quét secret (Gitleaks), SAST (Semgrep) cho F01/F02, và kiểm thử bảo mật `f01-f02.test.ts` (đỏ trước vá, xanh sau vá).
 - **Policy as Code (build-time):** luật Rego cho Dockerfile (F04) và cho `docker-compose` (F03), chặn ngay những cấu hình mở cổng backend hoặc chạy root **trước khi triển khai**.
@@ -133,35 +136,37 @@ Việc kiểm chứng diễn ra trên **hai môi trường chạy song song**: c
 
 !fig[env.png](Hai môi trường: đối chứng trước vá (3100) và triển khai sau vá qua proxy (3102); backend chạy ở mạng internal, không mở cổng host){width=16}
 
-Toàn bộ kiểm soát này được viết thành mã nên chạy lặp lại được; hiện chúng chạy cục bộ nhưng hoàn toàn có thể ghép thành một chuỗi cổng (gate) trong CI. Mỗi cổng trả về PASS, WARN hoặc FAIL. Chỉ mức **FAIL (luật `deny`)** mới chặn phát hành, còn mức **WARN (luật `warn`)** dừng ở cảnh báo. Cụ thể trong `compose.rego`, các luật `cap_drop` và `read_only` xếp mức WARN (khuyến cáo), trong khi các luật về mở cổng backend, bind ngoài loopback, privileged, mount docker.sock và secret nội tuyến đều ở mức FAIL (chặn).
+Toàn bộ kiểm soát này được viết thành mã nên chạy lặp lại được. **Hiện chúng chạy cục bộ**, chưa được nối thành *required check* bắt buộc trong CI; báo cáo vì vậy phân biệt rõ giữa "đã chạy và có mã thoát" với "đã chặn phát hành thật". Trong số đó, Conftest trả **mã thoát khác 0 khi vi phạm luật `deny`** (đã kiểm chứng: `exit 1` trên `Dockerfile.vulnerable`, mục 4.1) nên đủ điều kiện làm cổng chặn; còn `semgrep scan` **mặc định vẫn trả `exit 0` dù có cảnh báo** (phải thêm `--error` mới chặn), nên trong báo cáo này Semgrep đóng vai trò *phát hiện* chứ không phải cổng chặn. Mức **WARN (luật `warn`)** chỉ cảnh báo: trong `compose.rego`, `cap_drop` và `read_only` xếp WARN, còn mở cổng backend, bind ngoài loopback, privileged, mount docker.sock và secret nội tuyến đều ở mức FAIL.
 
-Table: Các cổng kiểm soát
-| Cổng kiểm soát | Công cụ | Lỗi được kiểm soát | Chặn phát hành |
+Table: Các cổng kiểm soát và vai trò đã kiểm chứng
+| Cổng kiểm soát | Công cụ | Lỗi được kiểm soát | Vai trò cổng (theo mã thoát đã kiểm chứng) |
 |---|---|---|---|
-| Quét secret | Gitleaks | khóa/bí mật lộ trong mã | có |
-| SAST | Semgrep | F01, F02 | có |
-| Kiểm thử bảo mật | node:test (Supertest) | F01, F02 (đỏ→xanh) | có |
-| Policy as Code — build | Conftest/OPA (Rego) | F03, F04 (Dockerfile, compose) | có — luật `deny`; luật `warn` chỉ cảnh báo |
-| Compliance as Code — runtime | Conftest + `docker inspect` | F03, F04 (container đang chạy) | cảnh báo |
+| Quét secret | Gitleaks | khóa/bí mật lộ trong mã | exit≠0 khi phát hiện secret; lần chạy cho exit 0 (không có) |
+| SAST | Semgrep | F01, F02 | *phát hiện*; `scan` mặc định exit 0 dù có cảnh báo (cần `--error` để chặn) |
+| Kiểm thử bảo mật | node:test (Supertest) | F01, F02 (đỏ→xanh) | exit≠0 khi còn ca đỏ (trước vá), exit 0 sau vá |
+| Policy as Code — build | Conftest/OPA (Rego) | F03, F04 (Dockerfile, compose) | exit≠0 khi vi phạm `deny` — **đã kiểm chứng** (exit 1 trên fixture lỗi); `warn` chỉ cảnh báo |
+| Compliance as Code — runtime | Conftest + `docker inspect` | F03, F04 (container đang chạy) | đối chứng runtime, không dùng để chặn phát hành |
 
 Báo cáo bám theo **bảy pha của tài liệu lab** (*Hands-On Lab Guide: Security as Code with OWASP Juice Shop & Docker*), chỉ thay một vài công cụ bằng lựa chọn tương đương:
 
-Table: Bảy pha DevSecOps của tài liệu lab và cách báo cáo phủ
-| Pha (tài liệu lab) | Hoạt động | Công cụ |
+Table: Bảy pha của tài liệu lab và cách báo cáo phủ
+| Pha (tên theo tài liệu lab) | Hoạt động trong báo cáo | Công cụ |
 |---|---|---|
-| 1. Thiết lập môi trường | Dựng hai môi trường trước/sau vá bằng Docker | Docker Compose, Node |
-| 2. Policy as Code | Kiểm chính sách Dockerfile & compose trước khi triển khai | Conftest/OPA (Rego) |
-| 3. SAST | Quét tĩnh tìm điểm yếu trong mã nguồn | Semgrep *(thay SonarQube)* |
+| 1. Environment setup | Dựng hai môi trường trước/sau vá bằng Docker | Docker Compose, Node.js |
+| 2. Policy as Code with Conftest | Kiểm chính sách Dockerfile & compose trước khi triển khai | Conftest/OPA (Rego) |
+| 3. Vulnerability discovery & regulatory mapping | Quét tĩnh tìm điểm yếu, đối chiếu điều khoản | Semgrep *(thay SonarQube — xem ghi chú)* |
 | 4. Test-Driven Security | Viết kiểm thử đỏ trước vá → xanh sau vá | node:test (Supertest) |
-| 5. Vá ứng dụng | Sửa mã theo kết quả kiểm thử | TypeScript / Express |
-| 6. Compliance as Code | Soi container đang chạy (runtime) | Conftest + `docker inspect` *(thay InSpec)* |
-| 7. Kiểm chứng | Chạy lại toàn bộ cổng kiểm soát; quét secret | Conftest, Gitleaks |
+| 5. Application patching | Sửa mã theo kết quả kiểm thử | TypeScript / Express |
+| 6. Compliance as Code (Chef InSpec) | Soi container đang chạy (runtime) | Conftest + `docker inspect` *(thay InSpec)* |
+| 7. Verification & deliverables | Chạy lại toàn bộ cổng kiểm soát; quét secret | Conftest, Gitleaks |
 
-Hai cổng tự động dưới đây đã chạy thật, kèm ảnh chụp output thực tế:
+Tài liệu lab Pha 3 dùng SonarQube làm SAST chính (kèm npm audit, Semgrep tùy chọn); báo cáo thay bằng Semgrep do phiên bản SonarQube của lab đã ngừng, nhưng vẫn giữ nguyên mục tiêu của pha là *phát hiện điểm yếu và ánh xạ điều khoản*. Pha 6 dùng Chef InSpec; báo cáo thay bằng Conftest + `docker inspect` cho cùng mục đích kiểm tra container đang chạy.
 
-!fig[gitleaks.png](Gitleaks quét toàn bộ commit vá: 24 commit, không có secret/khóa bí mật nào lộ){width=16}
+Hai cổng tự động dưới đây đã chạy thật. Các hình được **dựng lại từ log chạy thực** (log gốc kèm mã evidence trong thư mục `report/evidence/`); dòng kết luận PASS/chặn được tính theo **mã thoát thật** của lệnh — mỗi hình ghi kèm thời điểm chạy, commit và exit code ở chân hình.
 
-!fig[conftest-verify.png](Conftest verify: toàn bộ 17 unit test của bộ luật Rego (Dockerfile + compose) đều đạt){width=16}
+!fig[gitleaks.png](Gitleaks quét các commit vá (phạm vi `baf9dcea4..HEAD`): 30 commit, `exit 0` — không phát hiện secret theo cấu hình quét){width=16}
+
+!fig[conftest-verify.png](Conftest verify: 19 unit test của bộ luật Rego (13 ca Dockerfile + 6 ca compose), `exit 0` — đều đạt){width=16}
 
 Đoạn mã demo của mỗi thành viên không nằm ngoài tài liệu môn học mà **áp dụng trực tiếp** kỹ thuật được dạy ở đó:
 
@@ -179,15 +184,29 @@ Nói cách khác, mỗi thành viên chọn một kỹ thuật từ tài liệu 
 
 Các cổng quét tự động được chạy trên mã nguồn và cấu hình *chưa vá* để lộ ra điểm yếu trước khi sửa.
 
-**SAST (Semgrep).** Quét toàn bộ `routes/` và `lib/` cho ra 37 điểm yếu trên 25 tệp (NoSQL injection, XSS, băm yếu, JWT secret cố định…). Trong số đó, báo cáo tập trung ba điểm thuộc phạm vi phân công: F01 ở `login.ts` (SQL injection), F02 ở `basket.ts` (truy vấn giỏ hàng không ràng buộc chủ sở hữu) và hạn chế băm mật khẩu bằng MD5 không salt tại `lib/insecurity.ts`.
+**SAST (Semgrep).** Quét toàn bộ `routes/` và `lib/` (mã *chưa vá*) cho ra **38 cảnh báo** trên 25 tệp (NoSQL injection, XSS, băm yếu, JWT secret cố định…). Cần nhấn mạnh: đây là **cảnh báo công cụ, chưa phải 38 lỗ hổng đã xác nhận** — mỗi cảnh báo là một *gợi ý vị trí cần rà*. Trong số đó, báo cáo tập trung ba điểm thuộc phạm vi phân công: F01 ở `login.ts` (rule `express-sequelize-injection` — chỉ đúng dòng SQL injection, đã xác nhận); một cảnh báo NoSQLi tại `basket.ts` (rule `node_nosqli_injection`, CWE-943) được dùng làm *gợi ý* để rà F02 — **bản thân rule này không phát hiện IDOR**, F02 được xác nhận độc lập bằng kiểm thử A/B (mục 5.2); và băm mật khẩu bằng MD5 không salt tại `lib/insecurity.ts` (rủi ro lưu trữ còn lại, ngoài phạm vi F01).
 
-!fig[semgrep-overview.png](Semgrep quét toàn bộ mã nguồn: 37 điểm yếu trên 25 tệp; tô vàng ba điểm thuộc phạm vi báo cáo){width=16}
+!fig[semgrep-overview.png](Semgrep quét toàn bộ mã nguồn chưa vá: 38 cảnh báo trên 25 tệp (cảnh báo công cụ, chưa phải lỗ hổng đã xác nhận); tô vàng ba điểm thuộc phạm vi; `scan` trả `exit 0` nên là bước phát hiện, không tự chặn){width=16}
 
-!fig[semgrep-scan.png](Ba điểm yếu báo cáo xử lý: F01 SQL injection (login.ts), F02 truy vấn giỏ hàng (basket.ts) và MD5 không salt (insecurity.ts)){width=16}
+!fig[semgrep-scan.png](Ba điểm trong phạm vi — tách rõ phần cảnh báo nguyên văn của Semgrep và phần phân loại của nhóm: F01 (xác nhận), cảnh báo NoSQLi tại basket.ts (gợi ý rà F02, IDOR xác nhận bằng test A/B), và MD5 không salt (rủi ro còn lại)){width=16}
 
-**Policy as Code (Conftest).** Quét `Dockerfile.vulnerable` cho ra 6 vi phạm thuộc 4 nhóm luật, đủ để gate chặn phát hành (chi tiết F04 ở mục 5.4):
+**Policy as Code (Conftest).** Quét `Dockerfile.vulnerable` cho `exit 1` với **6 thông báo vi phạm thuộc 4 nhóm luật** `deny`, đủ điều kiện làm cổng chặn phát hành (chi tiết F04 ở mục 5.4):
 
-!fig[conftest-fail.png](Conftest quét Dockerfile.vulnerable: 6 vi phạm thuộc 4 nhóm luật, gate chặn phát hành){width=16}
+!fig[conftest-fail.png](Conftest quét Dockerfile.vulnerable: `exit 1`, 6 thông báo vi phạm thuộc 4 nhóm luật `deny`, gate chặn phát hành){width=16}
+
+## 4.2. Bảng kết quả hợp nhất
+
+Bảng dưới tổng hợp bốn tình huống theo cùng một mẫu, kèm **mã bằng chứng** (log gốc trong `report/evidence/`, kiểm thử, demo) để mỗi kết luận đều truy về được dữ liệu chạy thật.
+
+Table: Kết quả hợp nhất bốn tình huống (điều kiện → kỳ vọng → trước/sau vá → bằng chứng → rủi ro còn lại)
+| Mã | Điều kiện kiểm thử | Kết quả mong đợi | Trước vá | Sau vá | Bằng chứng | Rủi ro còn lại |
+|---|---|---|---|---|---|---|
+| F01 | Đăng nhập bằng payload SQL + mật khẩu sai | Từ chối (401) | Cấp token, vượt xác thực | 401; đăng nhập hợp lệ vẫn 200 | `f01-f02.test.ts`; demo `tv1`; `semgrep-overview.log` | Băm MD5 không salt (ngoài phạm vi F01) |
+| F02 | Token A đọc giỏ của B | Từ chối (404) | Trả về giỏ của B (IDOR) | 404; giỏ của chính A vẫn 200 | kiểm thử chéo A/B; demo `tv2` | — |
+| F03 | `GET /metrics` từ host | Chặn truy cập từ ngoài | 200, lộ chỉ số vận hành | 404 qua proxy; backend không mở cổng host | demo `tv3`; `env-*.log`; `hardening` | Giám sát nội bộ vẫn đọc được (đúng thiết kế) |
+| F04 | Conftest trên fixture lỗi / bản vá / Dockerfile gốc | Chặn fixture lỗi, đạt bản tốt | Fixture: `exit 1`, 6 vi phạm / 4 nhóm | Bản vá & gốc: đạt; `verify` 19/19 | `conftest-fail.log`; `conftest-verify.log`; demo `tv4` | Chưa ghim digest (mới cảnh báo); TLS nội bộ |
+
+Các chỉ số ở F03 là số liệu tổng hợp, chưa phải dữ liệu cá nhân định danh; F04 là fixture cố ý lỗi, không phải lỗi image gốc. Những điểm "ngoài phạm vi" (MD5, TLS, digest) được giữ lại ở cột *rủi ro còn lại* thay vì coi là đã xử lý.
 
 # 5. Bốn lỗi an toàn: phát hiện và xử lý
 
@@ -204,9 +223,7 @@ models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || '
 
 Với email `' OR 1=1--`, mệnh đề WHERE luôn đúng còn phần kiểm tra mật khẩu bị đẩy thành chú thích, nên máy chủ cấp token của tài khoản đầu tiên (tài khoản quản trị) mà không cần mật khẩu. Đây chính là CWE-89, OWASP A03:2021.
 
-**Phát hiện.** Semgrep (luật `express-sequelize-injection`) chỉ đúng dòng lỗi. Kiểm thử `test/api/security/f01-f02.test.ts` gửi payload kèm mật khẩu sai và đòi nhận về 401; trên mã chưa sửa, test báo đỏ (@fig(f0102-red)). Demo `demos/tv1_f01_sqli.py` xác nhận token vẫn được cấp (@fig(tv1)).
-
-!fig[semgrep.png](Semgrep phát hiện truy vấn nhiễm dữ liệu người dùng tại login.ts và basket.ts){width=16}
+**Phát hiện.** Semgrep (luật `express-sequelize-injection`) chỉ đúng dòng lỗi (xem hình quét tổng ở mục 4.1). Kiểm thử `test/api/security/f01-f02.test.ts` gửi payload kèm mật khẩu sai và đòi nhận về 401; trên mã chưa sửa, test báo đỏ (@fig(f0102-red)). Demo `demos/tv1_f01_sqli.py` xác nhận token vẫn được cấp (@fig(tv1)).
 
 !fig[f0102-red.png](Kiểm thử bảo mật F01/F02 trên mã chưa sửa: các ca kiểm thử đỏ ứng với lỗ hổng còn tồn tại){width=15}
 
@@ -227,7 +244,7 @@ Bản vá vẫn còn một giới hạn: nó chỉ xử lý injection, trong khi
 
 !fig[tv1.png](Demo F01: cùng payload, trước khi sửa được cấp token, sau khi sửa bị từ chối){width=15}
 
-**Chính sách vi phạm:** GDPR Điều 32(1)(b) (bảo mật khi xử lý dữ liệu); Nghị định 13/2023 Điều 26 (biện pháp kỹ thuật bảo vệ dữ liệu cá nhân); Luật ATTTM 2015 Điều 19. **Pha DevSecOps:** Code → Test. **Kiểm soát (Security as Code):** phát hiện bằng SAST ở pha Code, chặn tái diễn bằng kiểm thử bảo mật tự động ở pha Test.
+**Chính sách vi phạm:** GDPR Điều 32(1)(b) (bảo mật khi xử lý dữ liệu); Luật 91/2025/QH15 Điều 3 và NĐ 356/2025/NĐ-CP (biện pháp kỹ thuật bảo vệ dữ liệu cá nhân); Luật ATTTM 2015 Điều 19. **Pha DevSecOps:** Code → Test. **Kiểm soát (Security as Code):** phát hiện bằng SAST ở pha Code, chặn tái diễn bằng kiểm thử bảo mật tự động ở pha Test.
 
 ## 5.2. F02 — IDOR khi đọc giỏ hàng
 
@@ -241,7 +258,7 @@ const basket = await BasketModel.findOne({ where: { id }, include: [{ model: Pro
 
 Middleware chỉ xác nhận token hợp lệ chứ không kiểm tra quyền sở hữu, nên chỉ cần đổi `/rest/basket/8` thành `/rest/basket/9` là đọc được giỏ của người khác (CWE-639, OWASP A01:2021).
 
-**Phát hiện.** Kịch bản kiểm thử dựng hai tài khoản A và B, rồi dùng token của A để đọc giỏ của B. Trên mã chưa sửa, máy chủ trả về đúng giỏ của B (@fig(tv2)) và các ca tương ứng trong `f01-f02.test.ts` báo đỏ.
+**Phát hiện.** Semgrep có phát một cảnh báo `node_nosqli_injection` (CWE-943) tại truy vấn này, nhưng đó là cảnh báo *NoSQL injection* — không phải IDOR; báo cáo chỉ dùng nó làm **gợi ý vị trí cần rà**. Việc thiếu kiểm tra quyền sở hữu được xác nhận **độc lập** bằng kiểm thử chéo A/B: kịch bản dựng hai tài khoản A và B, rồi dùng token của A để đọc giỏ của B. Trên mã chưa sửa, máy chủ trả về đúng giỏ của B (@fig(tv2)) và các ca tương ứng trong `f01-f02.test.ts` báo đỏ.
 
 ### Sau khi sửa
 
@@ -262,13 +279,13 @@ Sau khi sửa, A đọc giỏ của B chỉ nhận 404, còn giỏ của chính 
 
 !fig[f0102-green.png](Kiểm thử bảo mật F01/F02 sau khi sửa: toàn bộ ca đạt){width=15}
 
-**Chính sách vi phạm:** GDPR Điều 5(1)(f), 25(2); Nghị định 13/2023 Điều 3 (nguyên tắc an toàn) và Điều 26; Luật ATTTM 2015 Điều 17 (không để lộ dữ liệu cá nhân cho bên thứ ba). **Pha DevSecOps:** Design → Test. **Kiểm soát (Security as Code):** kiểm thử phân quyền tự động trong pipeline, chống tái diễn.
+**Chính sách vi phạm:** GDPR Điều 5(1)(f), 25(2); Luật 91/2025/QH15 Điều 3 (nguyên tắc) và NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Điều 17 (không để lộ dữ liệu cá nhân cho bên thứ ba). **Pha DevSecOps:** Design → Test. **Kiểm soát (Security as Code):** kiểm thử phân quyền tự động trong pipeline, chống tái diễn.
 
 ## 5.3. F03 — Lộ endpoint /metrics không xác thực
 
 ### Trước khi sửa
 
-Juice Shop mở sẵn `/metrics` (Prometheus) mà không yêu cầu đăng nhập, để lộ số người dùng, số đơn hàng và tổng số dư ví. Khi container publish thẳng cổng ứng dụng ra ngoài, bất kỳ ai cũng gọi được endpoint này từ host. Đây là một lỗi thuộc khâu **triển khai/vận hành**.
+Juice Shop mở sẵn `/metrics` (Prometheus) mà không yêu cầu đăng nhập, xuất ra các chỉ số như số người dùng, số đơn hàng và tổng số dư ví. Khi container publish thẳng cổng ứng dụng, **mọi chủ thể có đường truy cập tới host** đều gọi được endpoint này; trong lab cổng chỉ bind loopback (`127.0.0.1`) nên phạm vi là *truy cập từ host*, chưa phải phơi ra Internet. Bản thân các chỉ số là **số liệu tổng hợp vận hành**, chưa đủ để coi là dữ liệu cá nhân định danh; tuy nhiên để một endpoint nội bộ không xác thực truy cập được vẫn vi phạm nguyên tắc *giảm bề mặt tấn công và tối thiểu phơi bày*. Đây là một rủi ro thuộc khâu **triển khai/vận hành**.
 
 **Phát hiện.** Demo `demos/tv3_f03_metrics.py` gọi `/metrics` từ host; trước khi sửa, endpoint trả về 200 kèm hàng trăm dòng số liệu (@fig(tv3)).
 
@@ -292,9 +309,11 @@ Sau khi sửa, `/metrics` đi qua proxy trả về 404 và cổng backend cũ b�
 
 !fig[tv3.png](Demo F03: /metrics lộ khi truy cập trực tiếp, bị chặn sau khi sửa){width=15}
 
-**Chính sách vi phạm:** GDPR Điều 25(2), 32(1)(b); Nghị định 13/2023 Điều 26; Luật ATTTM 2015 Điều 17, 19. **Pha DevSecOps:** Deploy → Operate. **Kiểm soát (Policy as Code):** luật `compose.rego` chặn mọi cấu hình để backend mở cổng host (mục 4).
+**Chính sách vi phạm:** GDPR Điều 25(2), 32(1)(b); Luật 91/2025/QH15 Điều 3 và NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Điều 17, 19. **Pha DevSecOps:** Deploy → Operate. **Kiểm soát (Policy as Code):** luật `compose.rego` chặn mọi cấu hình để backend mở cổng host (mục 4).
 
 ## 5.4. F04 — Sai cấu hình an toàn của container
+
+Khác ba lỗi trên, F04 **không phải lỗi của image Juice Shop gốc** (image distroless gốc đã chạy non-root và đạt bộ luật). Đây là một **fixture cấu hình sai chủ động dựng** (`Dockerfile.vulnerable`) để kiểm tra *năng lực phát hiện* của bộ policy — đúng tinh thần Policy as Code: có đầu vào "xấu" để chứng minh luật bắt được, và đầu vào "tốt" để chứng minh luật không báo nhầm.
 
 ### Trước khi sửa
 
@@ -312,9 +331,9 @@ Những cách kiểm tra sơ sài rất dễ bị qua mặt. Kiểm tra kiểu "
 
 **Rủi ro nếu để nguyên, không vá.** Mỗi vi phạm kéo theo một rủi ro an toàn cụ thể:
 
-- **Chạy bằng root (LEAST-PRIVILEGE):** nếu ứng dụng bị chiếm quyền qua một lỗ hổng khác, chẳng hạn chính F01, tiến trình độc hại sẽ có ngay quyền root *bên trong* container. Khi đó kẻ tấn công dễ ghi đè file hệ thống, cài thêm công cụ, và nếu ghép thêm một lỗ hổng nhân hệ điều hành thì có thể **thoát container và leo thang đặc quyền** lên máy chủ. Chạy non-root (UID 65532) giúp khoanh vùng thiệt hại ngay cả khi ứng dụng bị khai thác.
-- **Mở cổng quản trị/CSDL (ATTACK-SURFACE):** khai báo EXPOSE 22 (SSH) và 3306 (MySQL) cho thấy các dịch vụ này có thể được bật, qua đó **mở rộng bề mặt tấn công** và tạo đường cho kẻ xấu dò quét, đăng nhập vét cạn vào dịch vụ quản trị và cơ sở dữ liệu, chính là nơi chứa dữ liệu người dùng.
-- **Rủi ro chuỗi cung ứng (SUPPLY-CHAIN):** nếu thiếu nhãn nguồn gốc `org.opencontainers.image.source`/`revision`, khi có sự cố sẽ **không truy vết được image bắt nguồn từ commit nào** để điều tra hay thu hồi (đây là *provenance khai báo* theo SLSA L1, phục vụ truy vết; muốn chắc chắn hơn thì phải ký *attestation*). Thêm vào đó, dùng `:latest` hoặc chưa ghim digest khiến image có thể **bị đổi âm thầm** giữa các lần build, làm cho bản chạy thật khác với bản đã kiểm thử, còn lệnh `ADD` thì có thể kéo nội dung từ xa ngoài kiểm soát. Ghim digest, gắn nhãn nguồn gốc và dùng COPY sẽ giúp image **truy vết được, tái lập được và bất biến**.
+- **Chạy bằng root (LEAST-PRIVILEGE):** nếu về sau *giả định* tồn tại thêm một lỗ hổng **thực thi mã (RCE)** trong khi tiến trình chạy bằng root *bên trong* container, thiệt hại sẽ lớn hơn nhiều: kẻ tấn công dễ ghi đè file hệ thống, cài thêm công cụ, và nếu ghép thêm một lỗ hổng nhân hệ điều hành thì có thể **thoát container và leo thang đặc quyền** lên máy chủ. Lưu ý thực nghiệm F01 chỉ chứng minh **vượt xác thực**, chưa phải RCE; chạy non-root (UID 65532) là biện pháp *phòng thủ theo chiều sâu*, khoanh vùng thiệt hại cho những lỗ hổng giả định khác.
+- **Khai báo cổng quản trị/CSDL (ATTACK-SURFACE):** `EXPOSE 22`/`3306` **tự nó không mở** cổng hay khởi động dịch vụ (EXPOSE chỉ mang tính tài liệu), nhưng là **tín hiệu** rằng image dự kiến chạy các dịch vụ này và thường đi kèm publish cổng khi vận hành. Luật chặn khai báo này để giữ *quy ước* image tối giản, hướng người viết Dockerfile không mang theo cổng nhạy cảm; còn phơi nhiễm **thực tế** phải kiểm bằng cấu hình runtime (cổng lắng nghe, publish, network policy), không suy ra từ EXPOSE.
+- **Rủi ro chuỗi cung ứng (SUPPLY-CHAIN):** nếu thiếu nhãn nguồn gốc `org.opencontainers.image.source`/`revision`, khi có sự cố sẽ **khó truy vết image bắt nguồn từ commit nào** để điều tra hay thu hồi (đây là *metadata nguồn gốc tự khai*, hỗ trợ truy vết; **chưa đủ để kết luận đạt mức SLSA** — SLSA yêu cầu provenance được *sinh tự động*, mô tả cách build và được phân phối/kiểm chứng). Thêm vào đó, dùng `:latest` hoặc chưa ghim digest khiến image có thể **bị đổi âm thầm** giữa các lần build, làm bản chạy thật khác bản đã kiểm thử; còn lệnh `ADD` thì có thể kéo nội dung từ xa ngoài kiểm soát. Ghim digest, gắn nhãn nguồn gốc và dùng COPY sẽ giúp image **truy vết được, tái lập được và bất biến**.
 - **Bí mật nhúng trong image (SECRET-IN-IMAGE):** đặt mật khẩu hay token trong `ENV`/`ARG` khiến bí mật **bị bake vào layer của ảnh**, và bất kỳ ai `docker pull` rồi chạy `docker history` đều đọc được, kể cả khi dòng đó đã bị xóa ở layer sau. Cách đúng là dùng *build secret* hoặc nạp biến môi trường lúc chạy. (Đây là **luật do nhóm bổ sung**, không có trong bản mẫu của lab.)
 
 ### Sau khi sửa
@@ -337,251 +356,57 @@ CMD ["npm", "start"]
 
 Cụ thể, bản vá thêm lệnh `USER` để chạy non-root, loại hai cổng quản trị/CSDL khỏi `EXPOSE`, bổ sung nhãn nguồn gốc OCI và **không đặt bí mật trong `ENV`/`ARG`** (dùng *build secret* hoặc nạp biến môi trường lúc chạy). Khi phát hành thật, nên ghim base image theo digest, dù hiện luật Rego mới chỉ cảnh báo chứ chưa chặn. Image triển khai thực tế của nhóm (`deploy/Dockerfile.hotfix`) lẫn Dockerfile gốc của Juice Shop đều đã thỏa những yêu cầu này.
 
-**(2) Viết chính sách thành mã (Policy as Code)** bằng Rego/Conftest (`juice-shop/policy/docker_security.rego`), với mỗi luật được đặt đúng điểm thực thi để không bị qua mặt. Mã nguồn đầy đủ của bộ luật nằm ở **Phụ lục A**.
+**(2) Viết chính sách thành mã (Policy as Code)** bằng Rego/Conftest (`juice-shop/policy/docker_security.rego`), với mỗi luật được đặt đúng điểm thực thi để tránh các kiểu lách *đã biết* (ví dụ `USER` ở stage builder không tính cho stage cuối, UID root kèm group như `0:1000`). Mã nguồn đầy đủ của bộ luật nằm ở **Phụ lục A**.
 
-Cần lưu ý rằng Conftest là **bộ máy chính sách tổng quát và không có luật sẵn**, nên tự nó không quét ra lỗi nào. Chính **bộ luật Rego được viết riêng** (kèm mười một unit test chứng minh luật bắt đúng và không bị qua mặt) mới là *cách phát hiện* của F04. Đây cũng là cách Policy as Code vận hành: tổ chức tự mã hóa chính sách của mình, kiểm chứng và chạy lại được trong CI.
+Cần lưu ý rằng Conftest là **bộ máy chính sách tổng quát và không có luật sẵn**, nên tự nó không quét ra lỗi nào. Chính **bộ luật Rego được viết riêng** mới là *cách phát hiện* của F04. Bộ luật đi kèm **13 unit test** (nâng từ 11, bổ sung hai ca `USER 0:1000` và `root:1000` — biến thể root kèm group từng lọt do chỉ so khớp nguyên chuỗi, nay tách UID trước dấu `:` để bắt). Các ca này được thiết kế để luật bắt đúng những biến thể lách *đã biết* và không báo nhầm cấu hình hợp lệ; tất cả đều đạt trong lần chạy `conftest verify` (19/19). Đây cũng là cách Policy as Code vận hành: tổ chức tự mã hóa chính sách, kiểm chứng và chạy lại được trong CI.
 
 Các luật và tiêu chuẩn đối chiếu:
 
 Table: Luật kiểm tra cấu hình container — luật yêu cầu gì và dựa trên chuẩn nào
 | Luật | Luật yêu cầu gì (chặn khi vi phạm) | Tiêu chuẩn (ý nghĩa xem Phụ lục C) |
 |---|---|---|
-| LEAST-PRIVILEGE | Stage cuối **phải** khai báo `USER` là UID số, không phải root | CIS Docker 4.1; PCI-DSS 2.2; NĐ 13/2023 Đ.26; Luật ATTTM Đ.19 |
+| LEAST-PRIVILEGE | Stage cuối **phải** khai báo `USER` là UID số, không phải root (tách UID trước dấu `:`) | CIS Docker 4.1; PCI-DSS 2.2; NĐ 356/2025; Luật ATTTM Đ.19 |
 | ATTACK-SURFACE | **Không** được `EXPOSE` cổng quản trị/CSDL (22/23/3306/5432) | CIS Docker 5.8; NIST SP 800-190; Luật ATTTM Đ.19 |
-| SUPPLY-CHAIN | **Phải** có nhãn nguồn gốc OCI; **không** dùng `:latest`/`ADD`; nên ghim digest | OCI image-spec; SLSA; CIS Docker 4.5/4.9 |
-| SECRET-IN-IMAGE *(bổ sung)* | **Không** đặt secret/credential trong `ENV`/`ARG` | CIS Docker 4.10; PCI-DSS 8.2.1; GDPR Đ.32; NĐ 13/2023 Đ.26 |
+| SUPPLY-CHAIN | **Phải** có nhãn nguồn gốc OCI; **không** dùng `:latest`/`ADD`; nên ghim digest | OCI image-spec; CIS Docker Benchmark §4; NIST SSDF (SLSA: *tham chiếu*, chưa đánh giá đạt) |
+| SECRET-IN-IMAGE *(bổ sung)* | **Không** đặt secret/credential trong `ENV`/`ARG` | CIS Docker 4.10; PCI-DSS 8.2.1; GDPR Đ.32; NĐ 356/2025 |
 
-Lệnh `conftest verify` chạy toàn bộ chính sách đạt 17/17 ca kiểm thử (11 ca cho chính sách Dockerfile của F04 và 6 ca cho chính sách compose của F03). Kết quả cho thấy `Dockerfile.vulnerable` bị chặn bởi 4 nhóm luật (LEAST-PRIVILEGE, ATTACK-SURFACE, SUPPLY-CHAIN, SECRET-IN-IMAGE), bản vá thì đạt, và Dockerfile gốc distroless của Juice Shop cũng **đạt toàn bộ chính sách an toàn** (@fig(tv4)).
+Lệnh `conftest verify` chạy toàn bộ chính sách đạt **19/19** ca kiểm thử (13 ca cho chính sách Dockerfile của F04 và 6 ca cho chính sách compose của F03). Kết quả cho thấy `Dockerfile.vulnerable` bị chặn bởi 4 nhóm luật (LEAST-PRIVILEGE, ATTACK-SURFACE, SUPPLY-CHAIN, SECRET-IN-IMAGE), bản vá thì đạt, và Dockerfile gốc distroless của Juice Shop cũng **đạt bộ luật tùy chỉnh này** — lưu ý điều đó *không* đồng nghĩa đạt toàn bộ CIS Docker Benchmark, mà chỉ là đạt các luật đã định nghĩa (@fig(tv4)).
 
 !fig[tv4.png](Demo F04: Dockerfile.vulnerable bị chặn bốn nhóm luật, bản vá và Dockerfile gốc đạt chính sách){width=15}
 
-**Chính sách vi phạm:** GDPR Điều 25(1), 32(1)(d); CIS Docker Benchmark 4.1; Nghị định 13/2023 Điều 26; Luật ATTTM 2015 Điều 19; TCVN 11930:2017. **Pha DevSecOps:** Build → Release. **Kiểm soát (Policy as Code):** bộ luật Rego chạy như một cổng kiểm tra bắt buộc trong pipeline.
+**Chính sách vi phạm:** GDPR Điều 25(1), 32(1)(d); CIS Docker Benchmark 4.1; Luật 91/2025/QH15 Điều 3 và NĐ 356/2025/NĐ-CP (Điều 12 — điện toán đám mây); Luật ATTTM 2015 Điều 19; TCVN 11930:2017. **Pha DevSecOps:** Build → Release. **Kiểm soát (Policy as Code):** bộ luật Rego chạy như một cổng kiểm tra trong pipeline (đã kiểm chứng cục bộ, chưa nối thành required check).
 
 # 6. Kết luận
 
-Cả bốn lỗi an toàn (hai lỗi mã nguồn F01/F02 và hai lỗi triển khai F03/F04) đều được phát hiện bằng công cụ hoặc kiểm thử, rồi xử lý và kiểm chứng theo mạch trước→sau, kèm đoạn mã demo của từng thành viên. Toàn bộ quá trình phát hiện và chống tái diễn được thể hiện dưới dạng Policy as Code và Security as Code trong một chuỗi kiểm soát DevSecOps. Những biện pháp này vốn không có sẵn trong Juice Shop gốc, nơi lỗ hổng được để lại một cách cố ý, không có truy vấn tham số, không reverse proxy hay giới hạn tốc độ, không chính sách cấu hình container và cũng không có cổng kiểm soát nào trong CI. Đó chính là phần giá trị mà báo cáo bổ sung.
+Báo cáo minh họa quy trình **phát hiện – sửa – kiểm chứng** cho hai lỗi mã nguồn (F01 SQL injection, F02 IDOR), một tình huống phơi nhiễm endpoint giám sát (F03) và một tình huống cấu hình container sai **chủ động dựng** để kiểm tra bộ policy (F04). Toàn bộ được thể hiện dưới dạng Security as Code và Policy as Code trong một chuỗi kiểm soát DevSecOps chạy được, kèm log gốc và mã bằng chứng (mục 4.2).
+
+Phần đóng góp của nhóm — trong phạm vi bốn tình huống — gồm: bản vá F01/F02 kèm kiểm thử hồi quy, reverse proxy và giới hạn tốc độ cho F03, và bộ luật Rego (Dockerfile + compose, 19 unit test) cho F04. Cần nói rõ phạm vi để không phóng đại: kho mã Juice Shop gốc **đã có** CI/CD, CodeQL và tạo SBOM, nên báo cáo không khẳng định dự án gốc thiếu tự động hóa bảo mật; đóng góp ở đây là các kiểm soát **bổ sung, hướng dữ liệu cá nhân**, hiện chạy cục bộ và **chưa** được nối thành required check bắt buộc trong CI.
+
+Kết quả bị giới hạn bởi tập kiểm thử và bộ policy đã công bố: F04 chỉ chứng minh cấu hình đạt *các luật đã định nghĩa*, không phải đạt toàn bộ CIS Docker Benchmark; MD5 không salt, TLS nội bộ và digest chưa ghim vẫn là rủi ro còn lại; báo cáo chưa đánh giá SCA/DAST và chưa kết luận production-ready. Đây là những hướng mở rộng tiếp theo, không thuộc phạm vi bốn tình huống của đồ án.
 
 # 7. Tài liệu tham khảo
 
-- OWASP Juice Shop — https://owasp.org/www-project-juice-shop/
+- OWASP Juice Shop v20.2.0 — https://owasp.org/www-project-juice-shop/ (truy cập 10/2026).
 - GDPR, Regulation (EU) 2016/679, Điều 5, 25, 32.
-- Pháp luật Việt Nam: Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân (Điều 3, 26, 27); Luật An toàn thông tin mạng 2015 (86/2015/QH13, Điều 16, 17, 19); TCVN 11930:2017.
-- CIS Docker Benchmark; PCI-DSS v3.2.1 (Yêu cầu 3.4, 8.2.1, 2.2); OWASP Top 10 2021; SLSA.
-- Công cụ: Semgrep, Gitleaks, node:test (Supertest), Conftest/OPA.
-- Tài liệu môn học: bộ slide DevSecOps và hướng dẫn Policy as Code (Conftest).
+- Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15 (hiệu lực 01/01/2026), Điều 3 — congbao.chinhphu.vn.
+- Nghị định 356/2025/NĐ-CP (hiệu lực 01/01/2026, thay Nghị định 13/2023/NĐ-CP), Điều 9, 12.
+- Luật An toàn thông tin mạng 2015 (86/2015/QH13), Điều 16, 17, 19; TCVN 11930:2017.
+- PCI-DSS v3.2.1 (đối chiếu lịch sử — đã nghỉ 31/3/2024; bản hiện hành v4.0.1), Yêu cầu 2.2, 3.4, 8.2.1 — pcisecuritystandards.org.
+- CIS Docker Benchmark (§4 Container Images, §5 Runtime); OWASP Top 10 2021; NIST SP 800-190; NIST SSDF (SP 800-218); OCI image-spec; SLSA v1.x (slsa.dev).
+- Công cụ (phiên bản dùng trong thực nghiệm): Semgrep 1.180.0, Gitleaks v8.30.1, Conftest/OPA v0.71.1, node:test + Supertest.
+- Tài liệu môn học: *Hands-On Lab Guide — Security as Code with OWASP Juice Shop & Docker*; *Policy as Code with Conftest*.
 
 # Phụ lục A — Mã nguồn chính sách Dockerfile (docker_security.rego)
 
-**Nguồn:** kế thừa cấu trúc và các luật cốt lõi từ Appendix A.1 của tài liệu lab (`Policy_as_code_Lab ConfTest.docx`); phần nhóm điều chỉnh/bổ sung: bỏ luật HEALTHCHECK, gộp provenance vào SUPPLY-CHAIN, và **tự viết luật `SECRET-IN-IMAGE`** (xem mục 5.4). Namespace `dockerfile`, 8 luật `deny`; bộ kiểm thử `docker_security_test.rego` có 11 ca. Mỗi thông báo vi phạm trích kèm điều khoản chuẩn quốc tế và Việt Nam (NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19). Chạy: `conftest test <Dockerfile> -p juice-shop/policy --namespace dockerfile`.
+**Nguồn:** kế thừa cấu trúc và các luật cốt lõi từ Appendix A.1 của tài liệu lab (`Policy_as_code_Lab ConfTest.docx`); phần nhóm điều chỉnh/bổ sung: bỏ luật HEALTHCHECK, gộp provenance vào SUPPLY-CHAIN, và **tự viết luật `SECRET-IN-IMAGE`** (xem mục 5.4). Namespace `dockerfile`, 8 luật `deny`; bộ kiểm thử `docker_security_test.rego` có 13 ca. Mỗi thông báo vi phạm trích kèm điều khoản chuẩn quốc tế và Việt Nam (Luật 91/2025/QH15 Đ.3; NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Đ.19). Chạy: `conftest test <Dockerfile> -p juice-shop/policy --namespace dockerfile`.
 
-```rego
-# Policy as Code cho Dockerfile của Juice Shop — bám theo lab môn học "Policy as Code with Conftest".
-# Mỗi luật đặt tại điểm thực thi đúng thay vì các "original check" dễ bị qua mặt:
-#   Least privilege  -> USER ở STAGE CUỐI, UID số, không phải root (thay vì "có USER bất kỳ trong file")
-#   Firewall/RBAC    -> cổng quản trị/DB không được EXPOSE (giảm bề mặt tấn công)
-#   Supply chain     -> provenance khai báo (nhãn OCI source+revision, SLSA L1) + không :latest, không ADD, cảnh báo base chưa ghim digest
-#   Secret hygiene   -> KHÔNG nhúng bí mật (ENV/ARG) vào image (cải tiến của nhóm, ngoài bản mẫu lab)
-# Mỗi thông báo vi phạm trích sẵn điều khoản chuẩn áp dụng — quốc tế (CIS Docker, PCI-DSS, NIST, OCI/SLSA)
-# và Việt Nam (Nghị định 13/2023/NĐ-CP Điều 26 — biện pháp kỹ thuật bảo vệ dữ liệu cá nhân; Luật An toàn
-# thông tin mạng 2015 Điều 19 — biện pháp bảo đảm an toàn thông tin cá nhân, tuân thủ tiêu chuẩn kỹ thuật).
-#   chạy: conftest test <Dockerfile> -p policy/ --namespace dockerfile
-package dockerfile
-
-import rego.v1
-
-# Danh sách cổng quản trị/CSDL — giữ theo Appendix A.1 của lab (SSH, telnet, Docker daemon, MySQL, Postgres, Redis, Mongo).
-forbidden_ports := {"22", "23", "2375", "2376", "3306", "5432", "6379", "27017"}
-
-required_labels := {"org.opencontainers.image.source", "org.opencontainers.image.revision"}
-
-root_names := {"root", "0", "root:root", "0:0"}
-
-# Chỉ STAGE CUỐI tạo ra image chạy thật; USER ở stage builder không áp dụng cho runtime.
-final_stage := max([ins.Stage | some ins in input])
-
-final_users := [ins.Value[0] | some ins in input; ins.Stage == final_stage; ins.Cmd == "user"]
-
-last_user := final_users[count(final_users) - 1] if count(final_users) > 0
-
-# LEAST-PRIVILEGE ------------------------------------------------------------
-deny contains msg if {
-	count(final_users) == 0
-	msg := "LEAST-PRIVILEGE: final stage has no USER instruction; container runs as root. (CIS Docker 4.1; PCI-DSS 2.2; NIST SP 800-190; NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19)"
-}
-
-deny contains msg if {
-	last_user in root_names
-	msg := sprintf("LEAST-PRIVILEGE: final USER '%s' is root. (CIS Docker 4.1; PCI-DSS 2.2; NĐ 13/2023 Đ.26)", [last_user])
-}
-
-warn contains msg if {
-	last_user
-	not last_user in root_names
-	not regex.match(`^[0-9]+(:[0-9]+)?$`, last_user)
-	msg := sprintf("LEAST-PRIVILEGE: final USER '%s' is not a fixed numeric UID. (CIS Docker 4.1)", [last_user])
-}
-
-# ATTACK-SURFACE (firewall / RBAC) ------------------------------------------
-port_number(raw) := split(raw, "/")[0] # bỏ hậu tố /tcp, /udp
-
-deny contains msg if {
-	some ins in input
-	ins.Cmd == "expose"
-	some raw in ins.Value
-	port_number(raw) in forbidden_ports
-	msg := sprintf("ATTACK-SURFACE: EXPOSE '%s' covers administrative/database port %s. (CIS Docker 5.8; NIST SP 800-190; Luật ATTTM 2015 Đ.19)", [raw, port_number(raw)])
-}
-
-# SUPPLY-CHAIN — provenance khai báo (traceability; không thay cho chữ ký/attestation) --
-label_blob := concat(" ", [concat(" ", ins.Value) | some ins in input; ins.Cmd == "label"])
-
-deny contains msg if {
-	some req in required_labels
-	not contains(label_blob, req)
-	msg := sprintf("SUPPLY-CHAIN: missing provenance label '%s' (declared provenance for traceability). (OCI image-spec; SLSA Provenance L1; NIST SSDF)", [req])
-}
-
-# SUPPLY-CHAIN — base image (không :latest/ADD, ghim digest) -----------------
-deny contains msg if {
-	some ins in input
-	ins.Cmd == "from"
-	endswith(ins.Value[0], ":latest")
-	msg := sprintf("SUPPLY-CHAIN: base image '%s' uses :latest; pin a version or digest. (CIS Docker 4.5; SLSA)", [ins.Value[0]])
-}
-
-deny contains msg if {
-	some ins in input
-	ins.Cmd == "add"
-	msg := "SUPPLY-CHAIN: use COPY instead of ADD to avoid remote/implicit extraction. (CIS Docker 4.9)"
-}
-
-warn contains msg if {
-	some ins in input
-	ins.Cmd == "from"
-	not contains(ins.Value[0], "@sha256:")
-	not endswith(ins.Value[0], ":latest")
-	msg := sprintf("SUPPLY-CHAIN: base image '%s' is not pinned by digest. (CIS Docker 4.5; SLSA)", [ins.Value[0]])
-}
-
-# SECRET-IN-IMAGE — cải tiến của nhóm (ngoài bản mẫu lab) --------------------
-# Bí mật đặt trong ENV/ARG bị bake vào layer ảnh và lộ qua `docker history`. Ánh xạ
-# luật secret của compose (F03) xuống tầng Dockerfile. ENV parse thành [key, value, "=", ...];
-# ARG parse thành ["KEY=VALUE"].
-secret_key := `(?i)(password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential)`
-
-deny contains msg if {
-	some ins in input
-	ins.Cmd == "env"
-	some i, key in ins.Value
-	i % 3 == 0
-	i + 1 < count(ins.Value)
-	regex.match(secret_key, key)
-	ins.Value[i + 1] != ""
-	msg := sprintf("SECRET-IN-IMAGE: ENV '%s' hardcodes a credential into the image (exposed via docker history); use build secrets/runtime env. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 13/2023 Đ.26)", [key])
-}
-
-deny contains msg if {
-	some ins in input
-	ins.Cmd == "arg"
-	some tok in ins.Value
-	contains(tok, "=")
-	regex.match(secret_key, split(tok, "=")[0])
-	split(tok, "=")[1] != ""
-	msg := sprintf("SECRET-IN-IMAGE: ARG '%s' bakes a credential default into the image. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 13/2023 Đ.26)", [split(tok, "=")[0]])
-}
-```
+!include[policy/docker_security.rego]
 
 # Phụ lục B — Mã nguồn chính sách docker-compose (compose.rego)
 
-**Nguồn:** **nhóm tự viết** cho docker-compose — lab chỉ enforce trên manifest Kubernetes, nhóm chuyển các ý tưởng least-privilege/firewall/secret sang định dạng triển khai thật. Namespace `compose`, 5 luật `deny` (chặn backend mở cổng host, bind ngoài loopback, privileged, mount docker.sock, secret nội tuyến); bộ kiểm thử `compose_test.rego` có 6 ca. Thông báo vi phạm trích kèm điều khoản chuẩn quốc tế và Việt Nam (NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19). Chạy: `conftest test docker-compose.yml -p juice-shop/policy --namespace compose`.
+**Nguồn:** **nhóm tự viết** cho docker-compose — lab chỉ enforce trên manifest Kubernetes, nhóm chuyển các ý tưởng least-privilege/firewall/secret sang định dạng triển khai thật. Namespace `compose`, 5 luật `deny` (chặn backend mở cổng host, bind ngoài loopback, privileged, mount docker.sock, secret nội tuyến); bộ kiểm thử `compose_test.rego` có 6 ca. Thông báo vi phạm trích kèm điều khoản chuẩn quốc tế và Việt Nam (Luật 91/2025/QH15 Đ.3; NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Đ.19). Chạy: `conftest test docker-compose.yml -p juice-shop/policy --namespace compose`.
 
-```rego
-package compose
-
-import rego.v1
-
-# Input: file docker-compose (conftest tự đọc YAML).
-# ports chấp nhận cả 3 dạng của Compose: "127.0.0.1:3102:8080", 3000, {target, published, host_ip}.
-# Thông báo vi phạm trích điều khoản chuẩn quốc tế (GDPR, PCI-DSS, CIS Docker) và Việt Nam
-# (Nghị định 13/2023/NĐ-CP Điều 26; Luật An toàn thông tin mạng 2015 Điều 19).
-
-host_ip(p) := split(p, ":")[0] if {
-	is_string(p)
-	count(split(p, ":")) == 3
-}
-
-host_ip(p) := "" if {
-	is_string(p)
-	count(split(p, ":")) < 3
-}
-
-host_ip(p) := "" if is_number(p)
-
-host_ip(p) := object.get(p, "host_ip", "") if is_object(p)
-
-ports(svc) := object.get(svc, "ports", [])
-
-# Dịch vụ được thiết kế để nhận kết nối từ host (reverse proxy, dashboard) phải tự khai báo nhãn.
-edge(svc) if object.get(object.get(svc, "labels", {}), "lab.exposure", "") == "edge"
-
-# F03 / NET-02: backend không được publish cổng. Nếu backend có cổng host, mọi route (kể cả /metrics)
-# có thể bị truy cập vòng qua proxy, làm vô hiệu luật chặn /metrics và giới hạn tốc độ ở proxy.
-deny contains msg if {
-	some name, svc in input.services
-	count(ports(svc)) > 0
-	not edge(svc)
-	msg := sprintf("[F03 NET-02] service '%s' publishes ports but is not an edge service (label lab.exposure=edge); backend must only be reachable through the proxy (Luật ATTTM 2015 Đ.19; NĐ 13/2023 Đ.26)", [name])
-}
-
-# NET-01 (GDPR Art.32): cổng publish chỉ được bind loopback trong lab.
-deny contains msg if {
-	some name, svc in input.services
-	some p in ports(svc)
-	host_ip(p) != "127.0.0.1"
-	msg := sprintf("[GDPR Art.32 NET-01] service '%s' publishes %v on all interfaces (NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19)", [name, p])
-}
-
-deny contains msg if {
-	some name, svc in input.services
-	svc.privileged == true
-	msg := sprintf("[CIS Docker 5.4] service '%s' runs privileged", [name])
-}
-
-deny contains msg if {
-	some name, svc in input.services
-	some v in object.get(svc, "volumes", [])
-	contains(sprintf("%v", [v]), "docker.sock")
-	msg := sprintf("[CIS Docker 5.31] service '%s' mounts the Docker socket", [name])
-}
-
-# Biến môi trường có thể là danh sách "KEY=value" hoặc map {KEY: value}; *_FILE trỏ tới secret thì được phép.
-env(svc) := [e | some e in svc.environment] if is_array(svc.environment)
-
-env(svc) := [sprintf("%s=%v", [k, v]) | some k, v in svc.environment] if is_object(svc.environment)
-
-env(svc) := [] if not svc.environment
-
-deny contains msg if {
-	some name, svc in input.services
-	some e in env(svc)
-	regex.match(`(?i)^[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)=.+`, e)
-	msg := sprintf("[PCI-DSS 8.2.1 / GDPR Art.32 / NĐ 13/2023 Đ.26] service '%s' has an inline secret in environment: %s", [name, split(e, "=")[0]])
-}
-
-drops_all_caps(svc) if "ALL" in object.get(svc, "cap_drop", [])
-
-warn contains msg if {
-	some name, svc in input.services
-	not drops_all_caps(svc)
-	msg := sprintf("[CIS Docker 5.3] service '%s' does not drop capabilities", [name])
-}
-
-warn contains msg if {
-	some name, svc in input.services
-	not svc.read_only
-	msg := sprintf("[CIS Docker 5.12] service '%s' has a writable root filesystem", [name])
-}
-```
+!include[policy/compose.rego]
 
 # Phụ lục C — Giải thích tiêu chuẩn và điều khoản tham chiếu
 
@@ -600,7 +425,7 @@ Table: Tra cứu — mỗi tiêu chuẩn/điều khoản tham chiếu yêu cầu
 | PCI-DSS 3.4 | Làm số thẻ (PAN) không đọc được ở mọi nơi lưu trữ |
 | PCI-DSS 8.2.1 | Không lưu thông tin xác thực (credential) ở dạng đọc được |
 | CIS Docker 4.1 | Chạy container bằng user riêng, **không phải root** |
-| CIS Docker 4.5 | Dùng ảnh nền tin cậy, ghim phiên bản/digest (tránh tag động `:latest`) |
+| CIS Docker 4.5 | **Content Trust** — bật chữ ký số cho ảnh (`DOCKER_CONTENT_TRUST`). *Ghim digest/tránh `:latest`* là kiểm soát riêng thuộc nhóm quản lý ảnh nền (§4), không phải 4.5 |
 | CIS Docker 4.9 | Dùng `COPY` thay cho `ADD` (tránh kéo nội dung từ xa ngoài kiểm soát) |
 | CIS Docker 4.10 | Không lưu bí mật trong Dockerfile |
 | CIS Docker 5.3 | Loại bỏ Linux capabilities không cần (`cap_drop: ALL`) |
@@ -609,11 +434,10 @@ Table: Tra cứu — mỗi tiêu chuẩn/điều khoản tham chiếu yêu cầu
 | CIS Docker 5.12 | Gắn hệ thống tệp gốc ở chế độ chỉ đọc (`read_only`) |
 | CIS Docker 5.31 | Không mount Docker socket vào container |
 | OCI image-spec | Chuẩn định dạng ảnh container + nhãn metadata nguồn gốc |
-| SLSA (L1) | Khung toàn vẹn chuỗi cung ứng; mức L1 = *có khai báo nguồn gốc (provenance)* |
+| SLSA | Khung toàn vẹn chuỗi cung ứng. Mức Build L1 yêu cầu provenance được *sinh tự động* và phân phối; nhãn OCI tự khai trong báo cáo **chưa đạt** L1, chỉ dùng để tham chiếu |
 | NIST SP 800-190 | Hướng dẫn an toàn cho container |
-| NĐ 13/2023 Điều 3 | Nguyên tắc bảo vệ dữ liệu cá nhân (gồm nguyên tắc bảo mật, an toàn) |
-| NĐ 13/2023 Điều 26 | Biện pháp quản lý & kỹ thuật bảo vệ dữ liệu cá nhân, từ đầu và suốt quá trình xử lý |
-| NĐ 13/2023 Điều 27 | Biện pháp bảo vệ dữ liệu cá nhân cơ bản |
+| Luật 91/2025/QH15 Điều 3 | Nguyên tắc bảo vệ dữ liệu cá nhân (hợp pháp, đúng mục đích, chính xác, bảo mật – an toàn). Hiệu lực 01/01/2026 |
+| NĐ 356/2025/NĐ-CP | Quy định chi tiết biện pháp bảo vệ dữ liệu cá nhân (quản lý & kỹ thuật: mã hóa, xác thực, kiểm soát truy cập, giám sát); Điều 12 — điện toán đám mây. Thay Nghị định 13/2023 từ 01/01/2026 |
 | Luật ATTTM 2015 Điều 16 | Nguyên tắc bảo vệ thông tin cá nhân |
 | Luật ATTTM 2015 Điều 17 | Không chia sẻ thông tin cá nhân cho bên thứ ba khi chưa được đồng ý |
 | Luật ATTTM 2015 Điều 19 | Biện pháp quản lý & kỹ thuật bảo đảm an toàn thông tin cá nhân; tuân thủ tiêu chuẩn kỹ thuật |
