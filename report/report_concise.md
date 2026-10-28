@@ -54,6 +54,8 @@ Table: Dữ liệu cần bảo vệ và cơ sở chính sách
 | Giỏ hàng | Ràng buộc chủ sở hữu ở mọi truy vấn | GDPR Điều 5(1)(f), 25(2) |
 | Thẻ thanh toán | Không lưu/không lộ số thẻ đầy đủ | PCI-DSS 3.4; GDPR Điều 32 |
 
+Ý nghĩa cụ thể của từng điều khoản (GDPR, PCI-DSS… và các chuẩn khác) được tóm gọn trong **Bảng tra ở mục 3.2**.
+
 ## 2.1. Nghiệp vụ đăng ký và đăng nhập
 
 Người dùng đăng ký qua `POST /api/Users` và đăng nhập qua `POST /rest/user/login`. Route `routes/login.ts` truy vấn bảng Users; nếu khớp thì cấp JWT và mã giỏ hàng. Ranh giới tin cậy quan trọng: email do client gửi đi thẳng vào câu lệnh SQL — đây là gốc của lỗi **F01**.
@@ -111,11 +113,20 @@ Các phát hiện được đối chiếu với chính sách/tiêu chuẩn phổ
 - **Luật An toàn thông tin mạng 2015 (86/2015/QH13)**: **Điều 16** — nguyên tắc bảo vệ thông tin cá nhân; **Điều 17** — không cung cấp/chia sẻ thông tin cá nhân cho bên thứ ba khi chưa được đồng ý (liên quan F02/F03); **Điều 19** — bảo đảm an toàn thông tin cá nhân trên mạng bằng biện pháp quản lý, kỹ thuật và *tuân thủ tiêu chuẩn, quy chuẩn kỹ thuật*.
 - **TCVN 11930:2017** — tiêu chuẩn kỹ thuật quốc gia *Yêu cầu cơ bản về an toàn hệ thống thông tin theo cấp độ*, làm cơ sở kỹ thuật cho cấu hình triển khai tối thiểu (F03/F04).
 
-Để các trích dẫn trong báo cáo không chỉ là mã số, bảng sau nêu rõ **mỗi điều khoản yêu cầu gì**:
+Để **mọi** trích dẫn trong báo cáo không chỉ là tên + mã số, bảng sau tóm gọn **mỗi điều khoản yêu cầu gì**. Bảng này phủ toàn bộ tiêu chuẩn được dùng; các bảng và mục khác chỉ ghi mã, tra ý nghĩa tại đây.
 
-Table: Tra cứu — mỗi điều khoản tiêu chuẩn yêu cầu gì
-| Điều khoản | Yêu cầu cụ thể |
+Table: Tra cứu — mỗi tiêu chuẩn/điều khoản tham chiếu yêu cầu gì
+| Điều khoản | Yêu cầu / ý nghĩa tóm gọn |
 |---|---|
+| GDPR Điều 5(1)(f) | Nguyên tắc *toàn vẹn & bảo mật*: xử lý dữ liệu một cách an toàn |
+| GDPR Điều 25 | Bảo vệ dữ liệu *từ thiết kế* (khoản 1) và *theo mặc định* (khoản 2) |
+| GDPR Điều 32 | Biện pháp kỹ thuật & tổ chức bảo đảm an toàn khi xử lý — (1)(b) bí mật/toàn vẹn, (1)(d) kiểm thử & đánh giá định kỳ |
+| OWASP A01:2021 / CWE-639 | *Broken Access Control* — kiểm soát truy cập bị phá vỡ (IDOR) |
+| OWASP A02:2021 / CWE-327 | *Cryptographic Failures* — lỗi mật mã (vd băm mật khẩu bằng thuật toán yếu) |
+| OWASP A03:2021 / CWE-89 | *Injection* — tiêm nhiễm dữ liệu vào câu lệnh (SQL injection) |
+| PCI-DSS 2.2 | Cấu hình tham số an toàn hệ thống, chạy với đặc quyền tối thiểu |
+| PCI-DSS 3.4 | Làm số thẻ (PAN) không đọc được ở mọi nơi lưu trữ |
+| PCI-DSS 8.2.1 | Không lưu thông tin xác thực (credential) ở dạng đọc được |
 | CIS Docker 4.1 | Chạy container bằng user riêng, **không phải root** |
 | CIS Docker 4.5 | Dùng ảnh nền tin cậy, ghim phiên bản/digest (tránh tag động `:latest`) |
 | CIS Docker 4.9 | Dùng `COPY` thay cho `ADD` (tránh kéo nội dung từ xa ngoài kiểm soát) |
@@ -125,18 +136,15 @@ Table: Tra cứu — mỗi điều khoản tiêu chuẩn yêu cầu gì
 | CIS Docker 5.8 | Chỉ mở đúng cổng cần thiết (không mở cổng quản trị/CSDL) |
 | CIS Docker 5.12 | Gắn hệ thống tệp gốc ở chế độ chỉ đọc (`read_only`) |
 | CIS Docker 5.31 | Không mount Docker socket vào container |
-| PCI-DSS 2.2 | Cấu hình tham số an toàn hệ thống, chạy với đặc quyền tối thiểu |
-| PCI-DSS 3.4 | Làm số thẻ (PAN) không đọc được ở mọi nơi lưu trữ |
-| PCI-DSS 8.2.1 | Không lưu thông tin xác thực (credential) ở dạng đọc được |
-| GDPR Điều 5(1)(f) | Nguyên tắc toàn vẹn & bảo mật khi xử lý dữ liệu |
-| GDPR Điều 25 | Bảo vệ dữ liệu ngay từ thiết kế và theo mặc định |
-| GDPR Điều 32 | Biện pháp kỹ thuật & tổ chức bảo đảm an toàn khi xử lý |
+| OCI image-spec | Chuẩn định dạng ảnh container + nhãn metadata nguồn gốc |
+| SLSA (L1) | Khung toàn vẹn chuỗi cung ứng; mức L1 = *có khai báo nguồn gốc (provenance)* |
+| NIST SP 800-190 | Hướng dẫn an toàn cho container |
 | NĐ 13/2023 Điều 3 | Nguyên tắc bảo vệ dữ liệu cá nhân (gồm nguyên tắc bảo mật, an toàn) |
 | NĐ 13/2023 Điều 26 | Biện pháp quản lý & kỹ thuật bảo vệ dữ liệu cá nhân, từ đầu và suốt quá trình xử lý |
+| NĐ 13/2023 Điều 27 | Biện pháp bảo vệ dữ liệu cá nhân cơ bản |
+| Luật ATTTM 2015 Điều 16 | Nguyên tắc bảo vệ thông tin cá nhân |
 | Luật ATTTM 2015 Điều 17 | Không chia sẻ thông tin cá nhân cho bên thứ ba khi chưa được đồng ý |
 | Luật ATTTM 2015 Điều 19 | Biện pháp quản lý & kỹ thuật bảo đảm an toàn thông tin cá nhân; tuân thủ tiêu chuẩn kỹ thuật |
-| OCI image-spec / SLSA | Khai báo nguồn gốc (provenance) & bảo đảm toàn vẹn chuỗi cung ứng ảnh |
-| NIST SP 800-190 | Hướng dẫn an toàn cho container |
 | TCVN 11930:2017 | Yêu cầu cơ bản về an toàn hệ thống thông tin theo cấp độ |
 
 # 4. Bốn lỗi an toàn: phát hiện và xử lý
@@ -382,7 +390,7 @@ p = sh(*CF, 'test', target, '--parser', 'dockerfile', '-p', 'policy', '--namespa
 
 # 6. Đối chiếu chính sách bảo vệ dữ liệu
 
-Nhóm đối chiếu mỗi lỗi với cả khung **quốc tế (GDPR)** và **pháp luật Việt Nam** — Nghị định 13/2023/NĐ-CP (bảo vệ dữ liệu cá nhân) và Luật An toàn thông tin mạng 2015.
+Nhóm đối chiếu mỗi lỗi với cả khung **quốc tế (GDPR)** và **pháp luật Việt Nam** — Nghị định 13/2023/NĐ-CP (bảo vệ dữ liệu cá nhân) và Luật An toàn thông tin mạng 2015. Ý nghĩa cụ thể của từng điều khoản xem **Bảng tra ở mục 3.2**.
 
 Table: Ánh xạ lỗi với chính sách (quốc tế và Việt Nam)
 | Lỗi | GDPR | Nghị định 13/2023 | Luật ATTTM 2015 |
