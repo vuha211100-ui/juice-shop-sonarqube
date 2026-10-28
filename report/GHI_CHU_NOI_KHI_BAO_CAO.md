@@ -21,7 +21,7 @@ Mỗi script chạy bằng một lệnh `python report/demos/<tên>.py`; phần 
 
 - **F01 — `tv1_f01_sqli.py`:** gửi payload SQL kèm mật khẩu *sai*; còn lỗ hổng nếu vẫn được cấp token.
   `call(base,'POST','/rest/user/login',{'email':"' OR 1=1--",'password':'wrong-password'})` → có `token` = vượt xác thực.
-- **F02 — `tv2_f02_idor.py`:** dùng token của A đọc giỏ của B; `s==200 and body['data']['id']==b['bid']` = lộ giỏ người khác.
+- **F02 — `tv2_f02_sqli.py`:** gửi payload `UNION SELECT ... FROM Users` vào `/rest/products/search?q=`; trước vá trích được email+hash toàn bộ Users (28 dòng), sau vá 0 dòng dữ liệu người dùng. Lỗi do Semgrep (`express-sequelize-injection`) phát hiện.
 - **F03 — `tv3_f03_metrics.py`:** gọi `/metrics` — trước vá 200 (lộ), sau vá qua proxy 404.
 - **F04 — `tv4_f04_policy.py`:** chạy Conftest trên Dockerfile; thoát khác 0 = gate chặn, mỗi dòng FAIL là một luật bị vi phạm.
 
@@ -31,4 +31,4 @@ Mỗi luật là một mệnh đề Rego: phần *thân* nêu điều kiện vi 
 
 ## 4. Phân định nguồn — kế thừa lab vs tự bổ sung (nói khi bị hỏi "tự làm gì")
 
-`docker_security.rego` kế thừa cấu trúc và bốn luật cốt lõi từ Appendix A.1 tài liệu lab (LEAST-PRIVILEGE theo `USER` stage cuối, ATTACK-SURFACE theo cổng cấm, nhãn provenance OCI, SUPPLY-CHAIN `:latest`/digest). Phần bổ sung: (a) bỏ luật HEALTHCHECK/OBSERVABILITY (distroless không chạy được); (b) gộp provenance vào SUPPLY-CHAIN (metadata nguồn gốc tự khai — **chỉ hỗ trợ truy vết, chưa đạt SLSA**); (c) **tự viết luật `SECRET-IN-IMAGE`** chặn secret trong `ENV`/`ARG` (không có trong lab); (d) **sửa lỗ hổng tách UID**: `USER 0:1000` (root kèm group) từng lọt do so khớp nguyên chuỗi, nay tách phần trước dấu `:`; thêm 2 unit test (`0:1000`, `root:1000`) → tổng 13 ca Dockerfile, `conftest verify` 19/19. Khi bị hỏi "Semgrep có phát hiện IDOR không": **không** — Semgrep chỉ phát cảnh báo NoSQLi (CWE-943) làm gợi ý vị trí; IDOR (F02) xác nhận bằng test A/B. `compose.rego` (F03) tự viết cho docker-compose (lab chỉ có k8s.rego).
+`docker_security.rego` kế thừa cấu trúc và bốn luật cốt lõi từ Appendix A.1 tài liệu lab (LEAST-PRIVILEGE theo `USER` stage cuối, ATTACK-SURFACE theo cổng cấm, nhãn provenance OCI, SUPPLY-CHAIN `:latest`/digest). Phần bổ sung: (a) bỏ luật HEALTHCHECK/OBSERVABILITY (distroless không chạy được); (b) gộp provenance vào SUPPLY-CHAIN (metadata nguồn gốc tự khai — **chỉ hỗ trợ truy vết, chưa đạt SLSA**); (c) **tự viết luật `SECRET-IN-IMAGE`** chặn secret trong `ENV`/`ARG` (không có trong lab); (d) **sửa lỗ hổng tách UID**: `USER 0:1000` (root kèm group) từng lọt do so khớp nguyên chuỗi, nay tách phần trước dấu `:`; thêm 2 unit test (`0:1000`, `root:1000`) → tổng 13 ca Dockerfile, `conftest verify` 19/19. F02 (SQL injection ở tìm kiếm) do Semgrep phát hiện trực tiếp (`express-sequelize-injection`, cùng rule với F01) — khi bị hỏi "công cụ nào tìm ra" trả lời rõ là Semgrep, xác nhận thêm bằng test + demo. `compose.rego` (F03) tự viết cho docker-compose (lab chỉ có k8s.rego).

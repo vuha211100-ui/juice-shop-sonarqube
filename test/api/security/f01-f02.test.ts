@@ -1,5 +1,5 @@
 /*
- * Security-as-Code cho F01 (SQL injection ở đăng nhập) và F02 (IDOR khi đọc giỏ hàng).
+ * Security-as-Code cho F01 (SQL injection ở đăng nhập) và F02 (SQL injection ở tìm kiếm sản phẩm).
  * Các assertion mô tả hành vi AN TOÀN mong muốn: trên mã còn lỗi chúng phải FAIL (phát hiện),
  * sau khi vá chúng phải PASS (kiểm chứng bản vá) và được giữ lại để chống tái diễn.
  */
@@ -8,7 +8,6 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from '../helpers/setup'
-import { login } from '../helpers/auth'
 
 let app: Express
 
@@ -40,32 +39,25 @@ void describe('F01 — đăng nhập không bị SQL injection', () => {
   })
 })
 
-void describe('F02 — chỉ đọc được giỏ hàng của chính mình', () => {
-  void it('người dùng đọc giỏ của mình (200)', async () => {
-    const jim = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
-    const res = await request(app).get(`/rest/basket/${jim.bid}`).set('Authorization', `Bearer ${jim.token}`)
+void describe('F02 — tìm kiếm sản phẩm không bị SQL injection trích xuất dữ liệu', () => {
+  const union = "qwert')) UNION SELECT id,email,password,role,1,2,3,4,5 FROM Users--"
+
+  void it('tìm kiếm hợp lệ vẫn trả về sản phẩm (200)', async () => {
+    const res = await request(app).get('/rest/products/search').query({ q: 'apple' })
     assert.equal(res.status, 200)
-    assert.equal(res.body.data.id, jim.bid)
+    assert.ok(Array.isArray(res.body.data))
   })
 
-  void it('đọc giỏ của người khác bị từ chối (404, không lộ dữ liệu)', async () => {
-    const jim = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
-    const bender = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
-    const res = await request(app).get(`/rest/basket/${bender.bid}`).set('Authorization', `Bearer ${jim.token}`)
-    assert.equal(res.status, 404, 'IDOR: trả về giỏ của người khác')
-    assert.equal(res.body?.data?.UserId, undefined)
+  void it('payload UNION SELECT không trích được email người dùng từ bảng Users', async () => {
+    const res = await request(app).get('/rest/products/search').query({ q: union })
+    assert.equal(res.status, 200)
+    const names = (res.body.data ?? []).map((r: any) => String(r.name ?? ''))
+    assert.ok(!names.some((n: string) => n.includes('@juice-sh.op')), 'SQL injection: trích được email người dùng')
   })
 
-  void it('mã giỏ không hợp lệ bị từ chối (400)', async () => {
-    const jim = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
-    const res = await request(app).get('/rest/basket/abc').set('Authorization', `Bearer ${jim.token}`)
-    assert.equal(res.status, 400)
-  })
-
-  void it('JWT giả mạo (alg none) không đọc được giỏ (401)', async () => {
-    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
-    const payload = Buffer.from(JSON.stringify({ data: { email: 'jim@juice-sh.op' }, iat: 1508639612, exp: 9999999999 })).toString('base64url')
-    const res = await request(app).get('/rest/basket/1').set('Authorization', `Bearer ${header}.${payload}.`)
-    assert.equal(res.status, 401)
+  void it('payload UNION không làm lộ hash mật khẩu (chuỗi 32 hex) trong kết quả', async () => {
+    const res = await request(app).get('/rest/products/search').query({ q: union })
+    const blob = JSON.stringify(res.body.data ?? [])
+    assert.ok(!/\b[a-f0-9]{32}\b/.test(blob), 'SQL injection: lộ hash mật khẩu trong kết quả tìm kiếm')
   })
 })

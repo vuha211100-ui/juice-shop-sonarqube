@@ -188,32 +188,34 @@ def main():
             cur = m.group(1)
         elif 'rules.' in l and cur:
             files.setdefault(cur, []).append(l.rsplit('.', 1)[-1].strip())
-    HI = {'routes/login.ts': 'F01 SQL injection — xác nhận',
-          'lib/insecurity.ts': 'MD5 không salt (CWE-327) — rủi ro còn lại, ngoài F01'}
+    HI = {'routes/login.ts': 'F01 SQL injection (đăng nhập) — vượt xác thực',
+          'routes/search.ts': 'F02 SQL injection (tìm kiếm) — trích bảng Users, lộ email+hash',
+          'lib/insecurity.ts': 'MD5 không salt (CWE-327) — rủi ro còn lại, ngoài phạm vi vá'}
     ov = [('cmd', 'semgrep scan --config owasp-top-ten.yml --config nodejsscan.yml routes/ lib/   # mã chưa vá'),
           ('out', f'{count} Code Findings trên {len(files)} tệp (CẢNH BÁO công cụ, chưa phải {count} lỗ hổng đã xác nhận) — rút gọn:')]
     for f in sorted(files, key=lambda x: (x not in HI, x)):
         rz = ', '.join(sorted(set(files[f])))[:66]
         ov.append(('hl', f'  {f:<22} {rz}   <= {HI[f]}') if f in HI else ('out', f'  {f:<22} {rz}'))
     ov.append(('note', f'=> exit {sgrc}: semgrep scan không tự chặn (cần --error). Đây là bước PHÁT HIỆN.'))
-    ov.append(('note', '   Phạm vi mã nguồn: F01 (login.ts) và MD5 (insecurity.ts). F02 (IDOR) là lỗi kiểm'))
-    ov.append(('note', '   soát truy cập, tìm bằng rà mã + kiểm thử A/B — không do SAST phát hiện (xem 5.2).'))
+    ov.append(('note', '   Phạm vi báo cáo: F01 (login.ts) và F02 (search.ts) đều do SAST chỉ ra;'))
+    ov.append(('note', '   MD5 (insecurity.ts) là rủi ro lưu trữ còn lại. Phân tích chi tiết ở mục 5.'))
     render(SHOTS / 'semgrep-overview.png', 'Windows PowerShell — Semgrep (SAST) quét toàn bộ mã nguồn chưa vá', ov,
            evid_id='semgrep-overview', rc=sgrc)
 
-    # semgrep-scan.png: ĐÚNG cảnh báo thật của hai tệp trong phạm vi SAST (F01 + MD5), kèm ghi chú vì sao F02 không ở đây
+    # semgrep-scan.png: ĐÚNG cảnh báo thật của ba tệp trong phạm vi (F01 + F02 + MD5), kèm phân loại của nhóm
     def rules_of(fn):
         return ', '.join(sorted(set(files.get(fn, [])))) or '(không có)'
-    render(SHOTS / 'semgrep-scan.png', 'Windows PowerShell — Semgrep: điểm trong phạm vi mã nguồn', [
-        ('cmd', 'semgrep ... routes/login.ts lib/insecurity.ts   # trích từ lần quét trên'),
+    render(SHOTS / 'semgrep-scan.png', 'Windows PowerShell — Semgrep: điểm trong phạm vi báo cáo', [
+        ('cmd', 'semgrep ... routes/login.ts routes/search.ts lib/insecurity.ts   # trích từ lần quét trên'),
         ('out', 'Cảnh báo Semgrep (nguyên văn rule):'),
         ('hl', f'  routes/login.ts     {rules_of("routes/login.ts")}'),
+        ('hl', f'  routes/search.ts    {rules_of("routes/search.ts")}'),
         ('hl', f'  lib/insecurity.ts   {rules_of("lib/insecurity.ts")}'),
         ('out', ''),
-        ('note', 'Ghi chú:'),
-        ('out', '  F01  login.ts      Semgrep trỏ đúng dòng SQL injection; xác nhận thêm bằng test + đọc mã.'),
-        ('out', '  --   insecurity.ts  MD5 không salt — rủi ro lưu trữ còn lại, nằm ngoài phạm vi F01.'),
-        ('out', '  F02 (IDOR) là lỗi kiểm soát truy cập, không thuộc nhóm SAST phát hiện — xem mục 5.2.'),
+        ('note', 'Phân loại của nhóm:'),
+        ('out', '  F01  login.ts      SQL injection ở đăng nhập -> vượt xác thực. Vá: truy vấn tham số.'),
+        ('out', '  F02  search.ts     SQL injection ở tìm kiếm -> UNION trích bảng Users (email + hash).'),
+        ('out', '  --   insecurity.ts  MD5 không salt — rủi ro lưu trữ còn lại, ngoài phạm vi vá.'),
     ], evid_id='semgrep-overview', rc=sgrc)
 
     # 5) Conftest (Policy as Code) quét Dockerfile.vulnerable -> gate chặn khi exit != 0 (đúng kỳ vọng)

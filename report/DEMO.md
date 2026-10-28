@@ -57,7 +57,7 @@ docker ps --filter name=juice-report-lab --format "table {{.Names}}\t{{.Status}}
 ## 2. Chạy TẤT CẢ demo (một lệnh)
 
 ```powershell
-foreach ($d in 'tv1_f01_sqli','tv2_f02_idor','tv3_f03_metrics','tv4_f04_policy') {
+foreach ($d in 'tv1_f01_sqli','tv2_f02_sqli','tv3_f03_metrics','tv4_f04_policy') {
   Write-Host "`n===== $d =====" -ForegroundColor Cyan
   python report/demos/$d.py
 }
@@ -72,7 +72,7 @@ Hoặc chạy từng demo theo bảng dưới.
 | Lỗi (thành viên) | Lệnh demo | Kết quả mong đợi | Nơi vá |
 |---|---|---|---|
 | **F01 — SQL injection** (Nguyễn Toàn Thắng) | `python report/demos/tv1_f01_sqli.py` | trước vá: payload được cấp token; sau vá: 401 | `routes/login.ts` |
-| **F02 — IDOR giỏ hàng** (Phạm Thị Minh Thúy) | `python report/demos/tv2_f02_idor.py` | trước vá: A đọc được giỏ của B; sau vá: 404 | `routes/basket.ts` |
+| **F02 — SQL injection ở tìm kiếm** (Phạm Thị Minh Thúy) | `python report/demos/tv2_f02_sqli.py` | trước vá: payload UNION lộ email+hash toàn bộ Users; sau vá: 0 dòng dữ liệu người dùng | `routes/search.ts` |
 | **F03 — endpoint /metrics** (Đỗ Đức Quốc Anh) | `python report/demos/tv3_f03_metrics.py` | 3100/metrics lộ; 3102/metrics → 404; cổng 3101 refused; giám sát nội bộ vẫn đọc được | `docker-compose.yml`, `deploy/nginx.conf` |
 | **F04 — sai cấu hình container / Policy as Code** (Hồ Anh Vũ) | `python report/demos/tv4_f04_policy.py` | Dockerfile.vulnerable bị chặn 4 nhóm luật; bản vá, hotfix và **Dockerfile gốc đều đạt chính sách** | `policy/docker_security.rego` |
 

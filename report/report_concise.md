@@ -4,7 +4,6 @@ Table: Danh mục từ viết tắt
 | Viết tắt | Giải nghĩa |
 |---|---|
 | SQLi | SQL Injection — tiêm nhiễm câu lệnh SQL |
-| IDOR | Insecure Direct Object Reference — tham chiếu đối tượng thiếu kiểm soát truy cập |
 | JWT | JSON Web Token — token phiên |
 | SAST | Phân tích tĩnh mã nguồn (Static Application Security Testing) |
 | CI/CD | Tích hợp / triển khai liên tục |
@@ -25,7 +24,7 @@ Table: Phân công thành viên
 | Thành viên | Lỗi phụ trách | Nhóm lỗi | Pha DevSecOps |
 |---|---|---|---|
 | Nguyễn Toàn Thắng — B26CHAT039 | F01 SQL injection tại đăng nhập | Mã nguồn | Code, Test |
-| Phạm Thị Minh Thúy — B26CHAT042 | F02 IDOR khi đọc giỏ hàng | Mã nguồn (phân quyền) | Design, Code, Test |
+| Phạm Thị Minh Thúy — B26CHAT042 | F02 SQL injection ở tìm kiếm (lộ dữ liệu người dùng) | Mã nguồn | Code, Test |
 | Đỗ Đức Quốc Anh — B26CHAT001 | F03 Lộ endpoint /metrics không xác thực | Triển khai/vận hành | Deploy, Operate |
 | Hồ Anh Vũ — B26CHAT048 | F04 Sai cấu hình an toàn của container | Triển khai (build) | Build, Release |
 
@@ -60,9 +59,9 @@ Table: Dữ liệu cần bảo vệ và cơ sở chính sách
 
 Người dùng đăng ký qua `POST /api/Users` và đăng nhập qua `POST /rest/user/login`. Route `routes/login.ts` truy vấn bảng Users, nếu khớp thì cấp JWT kèm mã giỏ hàng. Vấn đề nằm ở ranh giới tin cậy: email do client gửi lên đi thẳng vào câu lệnh SQL, và đó chính là gốc của lỗi **F01**.
 
-## 2.2. Nghiệp vụ giỏ hàng và thanh toán
+## 2.2. Nghiệp vụ tìm kiếm sản phẩm
 
-Sau khi đăng nhập, người dùng gọi `GET /rest/basket/:id` để xem giỏ. Route `routes/basket.ts` tìm giỏ theo `id` trên URL nhưng bỏ qua việc kiểm tra giỏ đó có thuộc về người gọi hay không, và đây là gốc của lỗi **F02**. Vì dữ liệu giỏ hàng phản ánh thói quen mua sắm, nó cần được bảo vệ chặt theo quyền sở hữu.
+Người dùng tìm sản phẩm qua `GET /rest/products/search?q=`. Route `routes/search.ts` ghép thẳng tham số `q` vào câu lệnh SQL truy vấn bảng Products. Vì câu lệnh chạy ở quyền của ứng dụng trên toàn cơ sở dữ liệu, một chuỗi `q` khéo léo (UNION SELECT) có thể đọc sang bảng khác — kể cả bảng Users chứa email và hash mật khẩu — và đây là gốc của lỗi **F02**.
 
 # 3. Môi trường triển khai và yêu cầu an toàn tối thiểu
 
@@ -103,7 +102,7 @@ Table: Công cụ và vai trò
 |---|---|---|
 | Docker, Docker Compose | Nền tảng container | Triển khai ứng dụng và môi trường kiểm thử |
 | Nginx | Reverse proxy | Chặn /metrics, giới hạn tốc độ đăng nhập (F03) |
-| Semgrep | SAST (phân tích tĩnh) | Đọc mã nguồn (không chạy) để chỉ ra các mẫu lỗi; trong phạm vi báo cáo, xác định chính xác dòng SQL injection của F01 |
+| Semgrep | SAST (phân tích tĩnh) | Đọc mã nguồn (không chạy) để chỉ ra các mẫu lỗi; trong phạm vi báo cáo, xác định chính xác dòng SQL injection của F01 (đăng nhập) và F02 (tìm kiếm) |
 | Gitleaks | Quét secret | Tìm khóa/bí mật lộ trong mã nguồn |
 | node:test (Supertest) | Kiểm thử động | Chạy ứng dụng thật, tái hiện lỗi *trước khi vá* (đỏ) và kiểm chứng *sau khi vá* (xanh) |
 | Conftest / OPA (Rego) | Policy as Code | Kiểm tra Dockerfile và cấu hình triển khai (F03/F04) |
@@ -118,7 +117,7 @@ Các phát hiện được đối chiếu với những chính sách và tiêu c
 
 - **GDPR** (Regulation (EU) 2016/679): khung bảo vệ dữ liệu cá nhân; dùng các Điều 5 (nguyên tắc), 25 (bảo vệ ngay từ thiết kế) và 32 (an toàn khi xử lý) làm cơ sở đánh giá dữ liệu cần bảo vệ.
 - **PCI-DSS v3.2.1**: chuẩn an toàn dữ liệu thẻ thanh toán; Yêu cầu 3.4 (PAN nếu lưu phải ở dạng không đọc được), 8.2.1 (không lưu credential ở dạng đọc được), 2.2 (cấu hình an toàn, đặc quyền tối thiểu). PCI SSC đã cho v3.2.1 *nghỉ từ 31/3/2024*; báo cáo trích v3.2.1 như **đối chiếu lịch sử** (bản hiện hành là v4.0.1, các số điều có thay đổi, ví dụ 3.4 → 3.5.1).
-- **OWASP Top 10 2021 & CWE**: phân loại loại lỗi — A03 Injection/CWE-89 (F01), A01 Broken Access Control/CWE-639 (F02).
+- **OWASP Top 10 2021 & CWE**: phân loại loại lỗi — A03 Injection/CWE-89 (F01 ở đăng nhập và F02 ở tìm kiếm — cùng loại, khác điểm vào và tác động).
 - **CIS Docker Benchmark**: chuẩn cấu hình container an toàn — mục 4.1 (non-root), 4.9 (COPY thay ADD), 4.10 (không nhúng secret), 5.8 (hạn chế cổng) dùng cho F04. *Lưu ý:* mục 4.5 là **Content Trust** (bật chữ ký số ảnh) — khác với *ghim digest*; việc ghim digest/tránh `:latest` thuộc nhóm quản lý ảnh nền (§4), không phải 4.5.
 - **OCI image-spec / NIST SP 800-190 / NIST SSDF (SP 800-218) / SLSA**: định dạng và metadata nguồn gốc image, an toàn container và chuỗi cung ứng phần mềm (F04). Báo cáo dùng các khung này để *tham chiếu*, không tuyên bố đạt mức cụ thể (ví dụ SLSA).
 
@@ -185,11 +184,11 @@ Mỗi lỗi đi kèm một script demo (`demos/tv1`…`tv4`) tái hiện lỗi t
 
 Các cổng quét tự động được chạy trên mã nguồn và cấu hình *chưa vá* để lộ ra điểm yếu trước khi sửa.
 
-**SAST (Semgrep).** Quét toàn bộ `routes/` và `lib/` (mã *chưa vá*) cho ra **38 cảnh báo** trên 25 tệp (SQL/NoSQL injection, XSS, băm yếu, JWT secret cố định…). Đây là **cảnh báo công cụ, chưa phải 38 lỗ hổng đã xác nhận**; mỗi cảnh báo là một điểm cần rà soát thêm. Ở tầng mã nguồn, phân tích tĩnh chỉ ra chính xác hai điểm thuộc phạm vi: **F01** tại `login.ts` (rule `express-sequelize-injection`, trỏ đúng dòng ghép chuỗi SQL) và **băm mật khẩu MD5 không salt** tại `lib/insecurity.ts` (rule `node_md5`, CWE-327 — rủi ro lưu trữ còn lại). Lỗi F02 thuộc loại kiểm soát truy cập, không phải loại mà SAST phát hiện được; cách tìm ra F02 trình bày ở mục 5.2.
+**SAST (Semgrep).** Quét toàn bộ `routes/` và `lib/` (mã *chưa vá*) cho ra **38 cảnh báo** trên 25 tệp (SQL/NoSQL injection, XSS, băm yếu, JWT secret cố định…). Đây là **cảnh báo công cụ, chưa phải 38 lỗ hổng đã xác nhận**; mỗi cảnh báo là một điểm cần rà soát thêm. Thuộc phạm vi báo cáo, phân tích tĩnh chỉ ra ba điểm: **F01** tại `login.ts` và **F02** tại `search.ts` — cùng rule `express-sequelize-injection`, trỏ đúng dòng ghép chuỗi SQL (F01 ở đăng nhập, F02 ở tìm kiếm) — cùng **băm mật khẩu MD5 không salt** tại `lib/insecurity.ts` (rule `node_md5`, CWE-327 — rủi ro lưu trữ còn lại, ngoài phạm vi vá).
 
-!fig[semgrep-overview.png](Semgrep quét toàn bộ mã nguồn chưa vá: 38 cảnh báo trên 25 tệp (cảnh báo công cụ, chưa phải lỗ hổng đã xác nhận); tô vàng F01 (`login.ts`) và băm MD5 (`insecurity.ts`) thuộc phạm vi; lệnh `scan` trả `exit 0` nên chỉ là bước phát hiện, không tự chặn){width=16}
+!fig[semgrep-overview.png](Semgrep quét toàn bộ mã nguồn chưa vá: 38 cảnh báo trên 25 tệp (cảnh báo công cụ, chưa phải lỗ hổng đã xác nhận); tô vàng F01 (`login.ts`), F02 (`search.ts`) và băm MD5 (`insecurity.ts`); lệnh `scan` trả `exit 0` nên chỉ là bước phát hiện, không tự chặn){width=16}
 
-!fig[semgrep-scan.png](Chi tiết hai điểm Semgrep xác định trong phạm vi: F01 SQL injection tại `login.ts` và băm MD5 không salt tại `lib/insecurity.ts`; kèm ghi chú vì sao F02 không nằm trong nhóm này){width=16}
+!fig[semgrep-scan.png](Ba điểm Semgrep xác định trong phạm vi: F01 SQL injection ở đăng nhập (`login.ts`), F02 SQL injection ở tìm kiếm (`search.ts`) và băm MD5 không salt (`lib/insecurity.ts`); kèm phân loại của nhóm){width=16}
 
 **Policy as Code (Conftest).** Quét `Dockerfile.vulnerable` cho `exit 1` với **6 thông báo vi phạm thuộc 4 nhóm luật** `deny`, đủ điều kiện làm cổng chặn phát hành (chi tiết F04 ở mục 5.4):
 
@@ -203,7 +202,7 @@ Table: Kết quả hợp nhất bốn tình huống (điều kiện → kỳ v�
 | Mã | Điều kiện kiểm thử | Kết quả mong đợi | Trước vá | Sau vá | Bằng chứng | Rủi ro còn lại |
 |---|---|---|---|---|---|---|
 | F01 | Đăng nhập bằng payload SQL + mật khẩu sai | Từ chối (401) | Cấp token, vượt xác thực | 401; đăng nhập hợp lệ vẫn 200 | `f01-f02.test.ts`; demo `tv1`; `semgrep-overview.log` | Băm MD5 không salt (ngoài phạm vi F01) |
-| F02 | Token A đọc giỏ của B | Từ chối (404) | Trả về giỏ của B (IDOR) | 404; giỏ của chính A vẫn 200 | kiểm thử chéo A/B; demo `tv2` | — |
+| F02 | Payload UNION ở tham số `q` của tìm kiếm | Không trích được bảng khác | Lộ email+hash toàn bộ Users (28 dòng) | 0 dữ liệu người dùng; tìm kiếm hợp lệ vẫn chạy | `f01-f02.test.ts`; demo `tv2`; `semgrep-overview.log` | — |
 | F03 | `GET /metrics` từ host | Chặn truy cập từ ngoài | 200, lộ chỉ số vận hành | 404 qua proxy; backend không mở cổng host | demo `tv3`; `env-*.log`; `hardening` | Giám sát nội bộ vẫn đọc được (đúng thiết kế) |
 | F04 | Conftest trên fixture lỗi / bản vá / Dockerfile gốc | Chặn fixture lỗi, đạt bản tốt | Fixture: `exit 1`, 6 vi phạm / 4 nhóm | Bản vá & gốc: đạt; `verify` 19/19 | `conftest-fail.log`; `conftest-verify.log`; demo `tv4` | Chưa ghim digest (mới cảnh báo); TLS nội bộ |
 
@@ -247,40 +246,38 @@ Bản vá vẫn còn một giới hạn: nó chỉ xử lý injection, trong khi
 
 **Chính sách vi phạm:** GDPR Điều 32(1)(b) (bảo mật khi xử lý dữ liệu); Luật 91/2025/QH15 Điều 3 và NĐ 356/2025/NĐ-CP (biện pháp kỹ thuật bảo vệ dữ liệu cá nhân); Luật ATTTM 2015 Điều 19. **Pha DevSecOps:** Code → Test. **Kiểm soát (Security as Code):** phát hiện bằng SAST ở pha Code, chặn tái diễn bằng kiểm thử bảo mật tự động ở pha Test.
 
-## 5.2. F02 — IDOR khi đọc giỏ hàng
+## 5.2. F02 — SQL injection ở tìm kiếm sản phẩm
 
 ### Trước khi sửa
 
-Route `routes/basket.ts` tìm giỏ chỉ theo mã trên URL:
+Route `routes/search.ts` ghép thẳng tham số tìm kiếm `q` vào câu lệnh SQL:
 
 ```typescript
-const basket = await BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, as: 'Products' }] })
+let criteria = req.query.q ?? ''
+criteria = (criteria.length <= 200) ? criteria : criteria.substring(0, 200)
+models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`)
 ```
 
-Middleware chỉ xác nhận token hợp lệ chứ không kiểm tra quyền sở hữu, nên chỉ cần đổi `/rest/basket/8` thành `/rest/basket/9` là đọc được giỏ của người khác (CWE-639, OWASP A01:2021).
+Vì `q` đi thẳng vào chuỗi SQL, kẻ tấn công có thể đóng mệnh đề `LIKE` rồi nối một truy vấn **`UNION SELECT`** để đọc sang bảng khác. Với payload `qwert')) UNION SELECT id,email,password,role,1,2,3,4,5 FROM Users--`, máy chủ trả về cả bảng Users — **email và hash mật khẩu của mọi tài khoản** — ngay trong kết quả tìm kiếm (CWE-89, OWASP A03:2021). Đây là một sự cố lộ dữ liệu cá nhân trực tiếp, khác với F01 (vượt xác thực): cùng loại injection nhưng điểm vào và tác động khác nhau.
 
-**Phát hiện.** Lỗi được tìm ra bằng **rà soát mã nguồn** tuyến xử lý giỏ hàng: truy vấn `findOne({ where: { id } })` chỉ lọc theo mã giỏ lấy từ URL mà bỏ qua chủ sở hữu, trong khi middleware phía trước chỉ kiểm tra token có hợp lệ. Từ quan sát đó, giả thuyết IDOR được **kiểm chứng bằng kiểm thử động chéo A/B**: dựng hai tài khoản A và B, rồi dùng token của A gọi `GET /rest/basket/{id_của_B}`. Trên mã chưa sửa, máy chủ trả về đúng giỏ của B (@fig(tv2)); kịch bản này được tự động hóa thành ca kiểm thử trong `f01-f02.test.ts` (báo đỏ trước khi sửa). Đây là lỗi kiểm soát truy cập nên không công cụ phân tích tĩnh nào khẳng định được — bằng chứng đến từ việc đọc mã kết hợp phép thử truy cập chéo.
+**Phát hiện.** Semgrep (luật `express-sequelize-injection`) chỉ đúng dòng truy vấn này — F02 là một trong các cảnh báo SAST được xác nhận (xem hình quét ở mục 4.1). Kiểm thử `test/api/security/f01-f02.test.ts` gửi payload UNION rồi khẳng định kết quả **không** chứa email hay hash người dùng; trên mã chưa sửa các ca này báo đỏ (@fig(f0102-red)). Demo `demos/tv2_f02_sqli.py` xác nhận cùng payload trích ra 28 dòng dữ liệu người dùng ở bản chưa vá (@fig(tv2)).
 
 ### Sau khi sửa
 
-Giải pháp là ràng buộc chủ sở hữu ngay trong truy vấn, với danh tính lấy từ phiên do máy chủ cấp:
+Dùng truy vấn tham số (bind): chuỗi tìm kiếm được truyền như **giá trị**, không ghép vào câu lệnh:
 
 ```typescript
-const user = security.authenticatedUsers.from(req)
-if (!user?.data?.id) return res.status(401).end()
-const id = Number(req.params.id)
-if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).end()
-const basket = await BasketModel.findOne({ where: { id, UserId: user.data.id }, include: [{ model: ProductModel, as: 'Products' }] })
-if (!basket) return res.status(404).end()
+models.sequelize.query('SELECT * FROM Products WHERE ((name LIKE :q OR description LIKE :q) AND deletedAt IS NULL) ORDER BY name',
+  { replacements: { q: `%${criteria}%` } })
 ```
 
-Sau khi sửa, A đọc giỏ của B chỉ nhận 404, còn giỏ của chính A vẫn trả 200 (@fig(tv2)).
+Sau khi sửa, cùng payload UNION chỉ được coi là một chuỗi tìm kiếm thông thường: không sản phẩm nào khớp và **không dòng dữ liệu người dùng nào bị trả về**, trong khi tìm kiếm hợp lệ (ví dụ "apple") vẫn chạy bình thường (@fig(tv2)); kiểm thử bảo mật khi đó xanh toàn bộ (@fig(f0102-green)).
 
-!fig[tv2.png](Demo F02: trước khi sửa A đọc được giỏ của B, sau khi sửa nhận 404){width=14}
+!fig[tv2.png](Demo F02: payload UNION trích 28 dòng email+hash ở bản chưa vá; sau vá trả 0 dữ liệu người dùng, tìm kiếm hợp lệ vẫn chạy){width=15}
 
-!fig[f0102-green.png](Kiểm thử bảo mật F01/F02 sau khi sửa: toàn bộ ca đạt){width=15}
+!fig[f0102-green.png](Kiểm thử bảo mật F01/F02 sau khi sửa: toàn bộ 9 ca đạt){width=15}
 
-**Chính sách vi phạm:** GDPR Điều 5(1)(f), 25(2); Luật 91/2025/QH15 Điều 3 (nguyên tắc) và NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Điều 17 (không để lộ dữ liệu cá nhân cho bên thứ ba). **Pha DevSecOps:** Design → Test. **Kiểm soát (Security as Code):** kiểm thử phân quyền tự động trong pipeline, chống tái diễn.
+**Chính sách vi phạm:** GDPR Điều 5(1)(f), 32(1)(b); PCI-DSS 3.4 (làm lộ dữ liệu nhạy cảm); Luật 91/2025/QH15 Điều 3 và NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Điều 17 (không để lộ dữ liệu cá nhân cho bên thứ ba). **Pha DevSecOps:** Code → Test. **Kiểm soát (Security as Code):** phát hiện bằng SAST ở pha Code, chặn tái diễn bằng kiểm thử bảo mật tự động ở pha Test.
 
 ## 5.3. F03 — Lộ endpoint /metrics không xác thực
 
@@ -379,7 +376,7 @@ Lệnh `conftest verify` chạy toàn bộ chính sách đạt **19/19** ca ki�
 
 # 6. Kết luận
 
-Báo cáo minh họa quy trình **phát hiện – sửa – kiểm chứng** cho hai lỗi mã nguồn (F01 SQL injection, F02 IDOR), một tình huống phơi nhiễm endpoint giám sát (F03) và một tình huống cấu hình container sai **chủ động dựng** để kiểm tra bộ policy (F04). Toàn bộ được thể hiện dưới dạng Security as Code và Policy as Code trong một chuỗi kiểm soát DevSecOps chạy được, kèm log gốc và mã bằng chứng (mục 4.2).
+Báo cáo minh họa quy trình **phát hiện – sửa – kiểm chứng** cho hai lỗi mã nguồn (F01 SQL injection ở đăng nhập, F02 SQL injection ở tìm kiếm), một tình huống phơi nhiễm endpoint giám sát (F03) và một tình huống cấu hình container sai **chủ động dựng** để kiểm tra bộ policy (F04). Toàn bộ được thể hiện dưới dạng Security as Code và Policy as Code trong một chuỗi kiểm soát DevSecOps chạy được, kèm log gốc và mã bằng chứng (mục 4.2).
 
 Phần đóng góp của nhóm — trong phạm vi bốn tình huống — gồm: bản vá F01/F02 kèm kiểm thử hồi quy, reverse proxy và giới hạn tốc độ cho F03, và bộ luật Rego (Dockerfile + compose, 19 unit test) cho F04. Cần nói rõ phạm vi để không phóng đại: kho mã Juice Shop gốc **đã có** CI/CD, CodeQL và tạo SBOM, nên báo cáo không khẳng định dự án gốc thiếu tự động hóa bảo mật; đóng góp ở đây là các kiểm soát **bổ sung, hướng dữ liệu cá nhân**, hiện chạy cục bộ và **chưa** được nối thành required check bắt buộc trong CI.
 
@@ -419,7 +416,6 @@ Table: Tra cứu — mỗi tiêu chuẩn/điều khoản tham chiếu yêu cầu
 | GDPR Điều 5(1)(f) | Nguyên tắc *toàn vẹn & bảo mật*: xử lý dữ liệu một cách an toàn |
 | GDPR Điều 25 | Bảo vệ dữ liệu *từ thiết kế* (khoản 1) và *theo mặc định* (khoản 2) |
 | GDPR Điều 32 | Biện pháp kỹ thuật & tổ chức bảo đảm an toàn khi xử lý — (1)(b) bí mật/toàn vẹn, (1)(d) kiểm thử & đánh giá định kỳ |
-| OWASP A01:2021 / CWE-639 | *Broken Access Control* — kiểm soát truy cập bị phá vỡ (IDOR) |
 | OWASP A02:2021 / CWE-327 | *Cryptographic Failures* — lỗi mật mã (vd băm mật khẩu bằng thuật toán yếu) |
 | OWASP A03:2021 / CWE-89 | *Injection* — tiêm nhiễm dữ liệu vào câu lệnh (SQL injection) |
 | PCI-DSS 2.2 | Cấu hình tham số an toàn hệ thống, chạy với đặc quyền tối thiểu |

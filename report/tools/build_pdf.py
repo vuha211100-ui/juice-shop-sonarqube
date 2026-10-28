@@ -27,7 +27,7 @@ COURSE = 'Học phần: DevOps và DevSecOps (SEC4349)'
 SCHOOL = 'Học viện Công nghệ Bưu chính Viễn thông — Khoa An toàn thông tin'
 MEMBERS = [
     ('Nguyễn Toàn Thắng', 'B26CHAT039', 'F01 — SQL injection đăng nhập'),
-    ('Phạm Thị Minh Thúy', 'B26CHAT042', 'F02 — IDOR giỏ hàng'),
+    ('Phạm Thị Minh Thúy', 'B26CHAT042', 'F02 — SQL injection tìm kiếm'),
     ('Đỗ Đức Quốc Anh', 'B26CHAT001', 'F03 — lộ endpoint /metrics'),
     ('Hồ Anh Vũ', 'B26CHAT048', 'F04 — cấu hình an toàn container'),
 ]
