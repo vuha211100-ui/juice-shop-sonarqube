@@ -189,7 +189,7 @@ Lệnh chi tiết cho từng cổng (Semgrep SAST, Gitleaks, node:test đỏ→x
 | `DEMO.md` | Runbook đầy đủ: khởi động + chạy mọi demo + từng cổng kiểm soát |
 | `HUONG_DAN_DEMO.md` | Bản tóm tắt nhanh theo từng lỗi |
 | `PHAN_NOI.md` | Kịch bản thuyết trình + 12 câu hỏi phản biện |
-| `BaoCao_...gon.pdf` / `report_concise.md` | Báo cáo (PDF, 18 trang) và nguồn Markdown |
+| `BaoCao_...gon.pdf` / `.docx` / `report_concise.md` | Báo cáo bản nộp (PDF 25 trang **+ Word sửa được**) và nguồn Markdown |
 | `demos/` | 4 script demo `tv1`–`tv4` + `common.py` |
 | `checks/hardening.py` | Bảng cấu hình an toàn container đang chạy (ảnh `hardening.png`) |
 | `policy/` | Luật Rego kiểm tra container **runtime** (`docker inspect`) |
@@ -197,10 +197,12 @@ Lệnh chi tiết cho từng cổng (Semgrep SAST, Gitleaks, node:test đỏ→x
 | `fixtures/` | Dockerfile/compose mẫu để đối chứng policy |
 | `screenshots/` | Ảnh minh chứng trong báo cáo |
 | `figures/` | Script sinh hình minh hoạ (vd `devsecops_pipeline.py`) |
-| `tools/build_pdf.py` | **Dựng lại PDF** từ `report_concise.md` |
+| `tools/build_pdf.py` | **Dựng lại PDF** từ `report_concise.md` (Edge/Chrome) |
+| `tools/build_docx.py` | **Dựng lại Word (.docx)** từ `report_concise.md` (python-docx) |
 
-> **Dựng lại PDF báo cáo:** `python report/tools/build_pdf.py` → ghi đè `report/BaoCao_DevSecOps_JuiceShop_gon.pdf`.
-> Chỉ cần Python + Edge/Chrome (máy Windows 11 có sẵn Edge). Sửa nội dung trong `report_concise.md` rồi chạy lại.
+> **Dựng lại báo cáo** (sửa nội dung trong `report_concise.md` rồi chạy lại):
+> - PDF: `python report/tools/build_pdf.py` — cần Python + Edge/Chrome (Win11 có sẵn Edge).
+> - Word: `python report/tools/build_docx.py` — cần `pip install python-docx`. Mở file, bấm **Ctrl+A → F9** để cập nhật mục lục.
 
 > Chính sách **build-time** (Dockerfile F04 + compose F03) ở `policy/` tại **gốc repo**; `report/policy/` chỉ chứa luật **runtime**.
 
