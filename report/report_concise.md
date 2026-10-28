@@ -68,6 +68,19 @@ Sau khi đăng nhập, người dùng gọi `GET /rest/basket/:id` để xem gi�
 
 Ứng dụng chạy bằng Docker trên Windows (WSL2) và được triển khai qua `docker-compose.yml`. Các yêu cầu an toàn tối thiểu ở đây bám theo CIS Docker Benchmark cùng nguyên tắc giảm bề mặt tấn công.
 
+Để mỗi kết luận truy được về dữ liệu, thực nghiệm cố định các biến sau và chỉ thay đúng phần cần kiểm chứng (F01/F02 giữ nguyên seed/harness, chỉ thay route; F03 giữ logic ứng dụng, chỉ thay cấu hình truy cập; F04 chạy fixture trước/sau độc lập):
+
+Table: Phương pháp thực nghiệm
+| Hạng mục | Giá trị cố định |
+|---|---|
+| Mã nguồn trước vá (baseline) | commit `21219d66d` (routes/, lib/ chưa vá) — dùng cho Semgrep và ca kiểm thử đỏ |
+| Mã nguồn sau vá | nhánh `fix/f01-f04` (HEAD) |
+| Hai môi trường | đối chứng `127.0.0.1:3100` (image gốc) ↔ triển khai `127.0.0.1:3102` (proxy + backend mạng internal) |
+| Dữ liệu | seed mặc định của Juice Shop (dữ liệu giả lập) |
+| Công cụ (phiên bản) | Semgrep 1.180.0; Gitleaks v8.30.1; Conftest/OPA v0.71.1; node:test + Supertest |
+| Tiêu chí đạt | F01/F02: ca kiểm thử xanh; F03: `/metrics` trả 404 từ ngoài; F04: conftest `exit 0` với bản tốt, `exit 1` với fixture lỗi |
+| Bằng chứng | `report/evidence/*.log` (kèm exit code), kiểm thử, demo (tổng hợp ở mục 4.2) |
+
 Table: Kiểm soát an toàn tối thiểu
 | Kiểm soát | Cách thực hiện | Tiêu chuẩn |
 |---|---|---|
