@@ -32,8 +32,6 @@ ANSI = re.compile(r'\x1b\[[0-9;]*m')
 # phiên bản công cụ (ghim theo tag image dùng để chạy) — vào header log gốc
 TOOLS = {'gitleaks': 'zricethezav/gitleaks:v8.30.1', 'conftest': 'openpolicyagent/conftest:v0.71.1',
          'semgrep': 'semgrep/semgrep:1.180.0'}
-COMMIT = subprocess.run(['git', '-C', str(ROOT), 'rev-parse', '--short', 'HEAD'],
-                        capture_output=True, text=True).stdout.strip() or '?'
 NOW = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
 
 BG = (22, 27, 34)
@@ -70,7 +68,7 @@ def run(evid_id, display, argv, cwd=None, tool=None):
     text = ANSI.sub('', (p.stdout or '') + (p.stderr or '')).rstrip('\n')
     hdr = [f'# EVIDENCE {evid_id}', f'# command : {display}',
            f'# argv    : {" ".join(argv)}', f'# cwd     : {cwd or str(ROOT)}',
-           f'# time    : {NOW}', f'# commit  : {COMMIT}']
+           f'# time    : {NOW}']
     if tool:
         hdr.append(f'# tool    : {TOOLS.get(tool, tool)}')
     hdr += [f'# exit    : {p.returncode}', '# ----- combined stdout+stderr -----']
@@ -113,7 +111,7 @@ def render(out, title, blocks, evid_id=None, rc=None):
             d.text((pad, y), ln, font=F, fill=FG)
         y += lh
     if evid_id is not None:
-        foot = f'log gốc: report/evidence/{evid_id}.log   ·   {NOW}   ·   commit {COMMIT}   ·   exit code {rc}'
+        foot = f'log gốc: report/evidence/{evid_id}.log   ·   {NOW}   ·   exit code {rc}'
         d.text((pad, H - foot_h + 4), foot, font=FD, fill=DIM)
     img.save(out)
     print('wrote', out.name, img.size)
@@ -142,7 +140,7 @@ def main():
     print('Gitleaks (~15s)...')
     gl, rc = run('gitleaks', 'gitleaks git /repo --log-opts=baf9dcea4..HEAD', GL, tool='gitleaks')
     ncommit = next((re.search(r'(\d+)\s*commits', l).group(1) for l in gl.split('\n') if 'commits' in l), None)
-    summ = (f'=> exit {rc}: không phát hiện secret theo cấu hình quét Gitleaks trong phạm vi commit baf9dcea4..HEAD'
+    summ = (f'=> exit {rc}: không phát hiện secret theo cấu hình quét Gitleaks trên các commit vá của nhóm'
             if rc == 0 else f'=> exit {rc}: Gitleaks báo phát hiện — xem log gốc')
     render(SHOTS / 'gitleaks.png', 'Windows PowerShell — Gitleaks quét secret (Security as Code)', [
         ('cmd', 'docker run --rm -v ${PWD}:/repo:ro zricethezav/gitleaks:v8.30.1 \\'),

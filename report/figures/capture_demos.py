@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from capture_runs import ANSI, COMMIT, EVID, NOW, ROOT, SHOTS, render  # noqa: E402
+from capture_runs import ANSI, EVID, NOW, ROOT, SHOTS, render  # noqa: E402
 
 TCMD = ['node', '--import', './test/api/helpers/test-env.mjs', '--import', 'tsx',
         '--test', 'test/api/security/f01-f02.test.ts']
@@ -24,7 +24,7 @@ def runout(argv, cwd=ROOT, evid_id=None, display=None):
     out = ANSI.sub('', (p.stdout or '') + (p.stderr or '')).rstrip('\n')
     if evid_id:
         hdr = [f'# EVIDENCE {evid_id}', f'# command : {display or " ".join(argv)}', f'# cwd     : {cwd}',
-               f'# time    : {NOW}', f'# commit  : {COMMIT}', f'# exit    : {p.returncode}',
+               f'# time    : {NOW}', f'# exit    : {p.returncode}',
                '# ----- combined stdout+stderr -----']
         (EVID / f'{evid_id}.log').write_text('\n'.join(hdr) + '\n' + out + '\n', encoding='utf-8')
         print(f'  evidence/{evid_id}.log  exit={p.returncode}')

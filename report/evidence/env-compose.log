@@ -2,10 +2,9 @@
 # command : docker compose ps
 # argv    : docker compose ps --format table {{.Name}}	{{.Status}}	{{.Ports}}
 # cwd     : E:\banhoaqua\juice-shop
-# time    : 2026-10-29 01:18
-# commit  : 491fd8315
+# time    : 2026-10-29 01:55
 # exit    : 0
 # ----- combined stdout+stderr -----
-NAME                     STATUS                    PORTS
-juice-app-juice-shop-1   Up 53 minutes (healthy)   3000/tcp
-juice-app-proxy-1        Up 26 hours               127.0.0.1:3102->8080/tcp
+NAME                     STATUS                 PORTS
+juice-app-juice-shop-1   Up 2 hours (healthy)   3000/tcp
+juice-app-proxy-1        Up 27 hours            127.0.0.1:3102->8080/tcp

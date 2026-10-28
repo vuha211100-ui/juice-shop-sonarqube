@@ -73,8 +73,8 @@ Người dùng đăng ký qua `POST /api/Users` và đăng nhập qua `POST /res
 Table: Phương pháp thực nghiệm
 | Hạng mục | Giá trị cố định |
 |---|---|
-| Phiên bản mã trước khi vá | Bản mã Juice Shop gốc tại commit `21219d66d` (thư mục `routes/`, `lib/` chưa chỉnh) — dùng để quét Semgrep và chạy ca kiểm thử đỏ |
-| Phiên bản mã sau khi vá | Nhánh `fix/f01-f04`; image triển khai `juice-shop:hotfix-f01-f02` trên base ghim digest `sha256:8739101a…` |
+| Phiên bản mã trước khi vá | Bản mã Juice Shop gốc (thư mục `routes/`, `lib/` chưa chỉnh) — dùng để quét Semgrep và chạy ca kiểm thử đỏ |
+| Phiên bản mã sau khi vá | Bản vá của nhóm, đóng gói trong image hotfix triển khai ở cổng 3102 |
 | Hai môi trường | Đối chứng `127.0.0.1:3100` (image gốc) ↔ triển khai `127.0.0.1:3102` (proxy + backend mạng internal) |
 | Dữ liệu thử nghiệm | Bộ dữ liệu mẫu Juice Shop tự nạp khi khởi động (người dùng, giỏ hàng, sản phẩm giả lập) |
 | Công cụ (phiên bản) | Semgrep 1.180.0; Gitleaks v8.30.1; Conftest/OPA v0.71.1; node:test + Supertest |
@@ -173,9 +173,9 @@ Table: Bảy bước của quy trình DevSecOps áp dụng
 | 6. Compliance as Code | Kiểm tra cấu hình container tại thời điểm chạy | Conftest + `docker inspect` |
 | 7. Kiểm chứng và bàn giao | Chạy lại toàn bộ cổng kiểm soát; quét secret | Conftest, Gitleaks |
 
-Kết quả Gitleaks và Conftest được lưu trong `gitleaks.log` và `conftest-verify.log` (kèm thời điểm, phiên bản công cụ và mã thoát). Các hình dưới được dựng lại từ các log đó; dòng kết luận PASS/chặn tính theo **mã thoát** của lệnh, và mỗi hình ghi kèm thời điểm, commit, exit code ở chân hình.
+Kết quả Gitleaks và Conftest được lưu trong `gitleaks.log` và `conftest-verify.log` (kèm thời điểm, phiên bản công cụ và mã thoát). Các hình dưới được dựng lại từ các log đó; dòng kết luận PASS/chặn tính theo **mã thoát** của lệnh, và mỗi hình ghi kèm thời điểm và exit code ở chân hình.
 
-!fig[gitleaks.png](Gitleaks quét các commit vá (phạm vi `baf9dcea4..HEAD`): 30 commit, `exit 0` — không phát hiện secret theo cấu hình quét){width=16}
+!fig[gitleaks.png](Gitleaks quét các commit vá của nhóm: `exit 0` — không phát hiện secret theo cấu hình quét){width=16}
 
 !fig[conftest-verify.png](Conftest verify: 19 unit test của bộ luật Rego (13 ca Dockerfile + 6 ca compose), `exit 0` — đều đạt){width=16}
 
