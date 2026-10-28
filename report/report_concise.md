@@ -77,7 +77,9 @@ Table: Kiểm soát an toàn tối thiểu
 | Ghim phiên bản | Luật Rego chặn `:latest`, cảnh báo khi base image chưa ghim digest | CIS Docker 4.5 |
 | Lọc đường vào | Nginx chặn /metrics, giới hạn 5 lần đăng nhập/phút | GDPR Điều 32 |
 
-!fig[hardening.png](Cấu hình an toàn của các container đang chạy: không chạy root, drop capability, chỉ proxy mở cổng loopback){width=16}
+Các kiểm soát trên được **xác minh trên container đang chạy** bằng `docker inspect` (Compliance as Code), chứng minh chúng được áp dụng thực tế chứ không chỉ khai trong file cấu hình:
+
+!fig[hardening.png](Bằng chứng runtime qua `docker inspect`: cả ba container chạy non-root (USER), `cap_drop: ALL`, `no-new-privileges`; backend không mở cổng host (CỔNG HOST = “-”, mạng internal), chỉ proxy mở loopback 127.0.0.1:3102){width=16}
 
 Giới hạn còn lại: container đối chứng 3100 chạy image gốc chỉ dùng để so sánh trước/sau; HTTP nội bộ chưa dùng TLS; base image chưa ghim theo digest (luật Rego hiện mới cảnh báo, chưa bắt buộc trên image đối chứng).
 
