@@ -1,5 +1,5 @@
 /*
- * Security-as-Code cho F01 (SQL injection ở đăng nhập) và F02 (SQL injection ở tìm kiếm sản phẩm).
+ * Security-as-Code cho F01 (SQL injection ở đăng nhập) và F02 (path traversal qua poison null byte ở route tải tệp).
  * Các assertion mô tả hành vi AN TOÀN mong muốn: trên mã còn lỗi chúng phải FAIL (phát hiện),
  * sau khi vá chúng phải PASS (kiểm chứng bản vá) và được giữ lại để chống tái diễn.
  */
@@ -39,25 +39,20 @@ void describe('F01 — đăng nhập không bị SQL injection', () => {
   })
 })
 
-void describe('F02 — tìm kiếm sản phẩm không bị SQL injection trích xuất dữ liệu', () => {
-  const union = "qwert')) UNION SELECT id,email,password,role,1,2,3,4,5 FROM Users--"
-
-  void it('tìm kiếm hợp lệ vẫn trả về sản phẩm (200)', async () => {
-    const res = await request(app).get('/rest/products/search').query({ q: 'apple' })
+void describe('F02 — tải tệp tĩnh không bị path traversal qua poison null byte', () => {
+  void it('tệp .md hợp lệ vẫn tải được (200)', async () => {
+    const res = await request(app).get('/ftp/legal.md')
     assert.equal(res.status, 200)
-    assert.ok(Array.isArray(res.body.data))
   })
 
-  void it('payload UNION SELECT không trích được email người dùng từ bảng Users', async () => {
-    const res = await request(app).get('/rest/products/search').query({ q: union })
-    assert.equal(res.status, 200)
-    const names = (res.body.data ?? []).map((r: any) => String(r.name ?? ''))
-    assert.ok(!names.some((n: string) => n.includes('@juice-sh.op')), 'SQL injection: trích được email người dùng')
+  void it('poison null byte không vượt allowlist để đọc package.json.bak (403)', async () => {
+    const res = await request(app).get('/ftp/package.json.bak%2500.md')
+    assert.equal(res.status, 403, 'path traversal: đọc được tệp đuôi bị cấm')
+    assert.ok(!res.text.includes('intentionally insecure'), 'lộ nội dung package.json.bak')
   })
 
-  void it('payload UNION không làm lộ hash mật khẩu (chuỗi 32 hex) trong kết quả', async () => {
-    const res = await request(app).get('/rest/products/search').query({ q: union })
-    const blob = JSON.stringify(res.body.data ?? [])
-    assert.ok(!/\b[a-f0-9]{32}\b/.test(blob), 'SQL injection: lộ hash mật khẩu trong kết quả tìm kiếm')
+  void it('poison null byte không đọc được bản sao lưu coupon (403)', async () => {
+    const res = await request(app).get('/ftp/coupons_2013.md.bak%2500.md')
+    assert.equal(res.status, 403)
   })
 })

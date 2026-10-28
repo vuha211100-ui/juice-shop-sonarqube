@@ -23,6 +23,13 @@ export function servePublicFiles () {
   }
 
   function verify (file: string, res: Response, next: NextFunction) {
+    // F02 — chặn path traversal qua poison null byte: từ chối ngay tên file chứa null byte,
+    // trước khi allowlist đuôi .md/.pdf bị qua mặt bằng hậu tố '%00.md'.
+    if (file && (file.includes('%00') || file.includes('\u0000'))) {
+      res.status(403)
+      next(new Error('File names cannot contain null bytes!'))
+      return
+    }
     if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
       file = security.cutOffPoisonNullByte(file)
 

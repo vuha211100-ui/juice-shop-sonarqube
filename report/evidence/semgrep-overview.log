@@ -1,9 +1,9 @@
 # EVIDENCE semgrep-overview
 # command : semgrep scan --config owasp-top-ten.yml --config nodejsscan.yml routes/ lib/
-# argv    : docker run --rm -e SEMGREP_SEND_METRICS=off -v C:/Users/admin/AppData/Local/Temp/vuln-mry63phi:/src:ro -v E:/banhoaqua/juice-shop/report/semgrep-rules:/rules:ro semgrep/semgrep:1.180.0 semgrep scan --metrics=off --config /rules/owasp-top-ten.yml --config /rules/nodejsscan.yml /src
+# argv    : docker run --rm -e SEMGREP_SEND_METRICS=off -v C:/Users/admin/AppData/Local/Temp/vuln-nfh_sjsn:/src:ro -v E:/banhoaqua/juice-shop/report/semgrep-rules:/rules:ro semgrep/semgrep:1.180.0 semgrep scan --metrics=off --config /rules/owasp-top-ten.yml --config /rules/nodejsscan.yml /src
 # cwd     : E:\banhoaqua\juice-shop
-# time    : 2026-10-29 00:11
-# commit  : 1b831ca7e
+# time    : 2026-10-29 00:28
+# commit  : 40ed9b14b
 # tool    : semgrep/semgrep:1.180.0
 # exit    : 0
 # ----- combined stdout+stderr -----

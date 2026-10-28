@@ -24,7 +24,7 @@ Table: Phân công thành viên
 | Thành viên | Lỗi phụ trách | Nhóm lỗi | Pha DevSecOps |
 |---|---|---|---|
 | Nguyễn Toàn Thắng — B26CHAT039 | F01 SQL injection tại đăng nhập | Mã nguồn | Code, Test |
-| Phạm Thị Minh Thúy — B26CHAT042 | F02 SQL injection ở tìm kiếm (lộ dữ liệu người dùng) | Mã nguồn | Code, Test |
+| Phạm Thị Minh Thúy — B26CHAT042 | F02 Path traversal ở route tải tệp (lộ tệp nhạy cảm) | Mã nguồn | Code, Test |
 | Đỗ Đức Quốc Anh — B26CHAT001 | F03 Lộ endpoint /metrics không xác thực | Triển khai/vận hành | Deploy, Operate |
 | Hồ Anh Vũ — B26CHAT048 | F04 Sai cấu hình an toàn của container | Triển khai (build) | Build, Release |
 
@@ -42,7 +42,7 @@ Table: Thành phần của ứng dụng Juice Shop
 | Giám sát | prom-client, endpoint `/metrics` | Xuất chỉ số dạng Prometheus |
 | Đóng gói | Docker image distroless, chạy UID 65532 | Triển khai bằng container |
 
-Cả bốn lỗi được phân tích đều gắn với những thành phần này: REST API và ORM (F01, F02), endpoint giám sát (F03) cùng cách đóng gói container (F04). Yêu cầu bảo vệ dữ liệu được xác định theo GDPR (nguyên tắc ở Điều 5, nghĩa vụ an toàn ở Điều 32) và PCI-DSS cho dữ liệu thẻ thanh toán. Song song với khung quốc tế, báo cáo đối chiếu pháp luật Việt Nam **hiện hành tại thời điểm lập báo cáo (tháng 10/2026)**: **Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15** và **Nghị định 356/2025/NĐ-CP** (cùng hiệu lực 01/01/2026, thay thế Nghị định 13/2023/NĐ-CP), cùng **Luật An toàn thông tin mạng 2015** (chi tiết ở mục 3.2).
+Cả bốn lỗi được phân tích đều gắn với những thành phần này: REST API/ORM (F01), route phục vụ tệp tĩnh (F02), endpoint giám sát (F03) cùng cách đóng gói container (F04). Yêu cầu bảo vệ dữ liệu được xác định theo GDPR (nguyên tắc ở Điều 5, nghĩa vụ an toàn ở Điều 32) và PCI-DSS cho dữ liệu thẻ thanh toán. Song song với khung quốc tế, báo cáo đối chiếu pháp luật Việt Nam **hiện hành tại thời điểm lập báo cáo (tháng 10/2026)**: **Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15** và **Nghị định 356/2025/NĐ-CP** (cùng hiệu lực 01/01/2026, thay thế Nghị định 13/2023/NĐ-CP), cùng **Luật An toàn thông tin mạng 2015** (chi tiết ở mục 3.2).
 
 Table: Dữ liệu cần bảo vệ và cơ sở chính sách
 | Dữ liệu | Yêu cầu bảo vệ | Cơ sở chính sách |
@@ -59,9 +59,9 @@ Table: Dữ liệu cần bảo vệ và cơ sở chính sách
 
 Người dùng đăng ký qua `POST /api/Users` và đăng nhập qua `POST /rest/user/login`. Route `routes/login.ts` truy vấn bảng Users, nếu khớp thì cấp JWT kèm mã giỏ hàng. Vấn đề nằm ở ranh giới tin cậy: email do client gửi lên đi thẳng vào câu lệnh SQL, và đó chính là gốc của lỗi **F01**.
 
-## 2.2. Nghiệp vụ tìm kiếm sản phẩm
+## 2.2. Nghiệp vụ tải tệp tài liệu
 
-Người dùng tìm sản phẩm qua `GET /rest/products/search?q=`. Route `routes/search.ts` ghép thẳng tham số `q` vào câu lệnh SQL truy vấn bảng Products. Vì câu lệnh chạy ở quyền của ứng dụng trên toàn cơ sở dữ liệu, một chuỗi `q` khéo léo (UNION SELECT) có thể đọc sang bảng khác — kể cả bảng Users chứa email và hash mật khẩu — và đây là gốc của lỗi **F02**.
+Ứng dụng cho phép tải tệp tài liệu trong thư mục `ftp/` qua `GET /ftp/:file`, chỉ cho phép đuôi `.md`/`.pdf`. Route `routes/fileServer.ts` xử lý yêu cầu này. Thư mục `ftp/` còn chứa một số tệp **không nên để tải về** (bản sao lưu cấu hình, mã giảm giá…). Nếu bộ lọc đuôi file bị qua mặt, người dùng có thể đọc các tệp nhạy cảm đó — và đây là gốc của lỗi **F02**.
 
 # 3. Môi trường triển khai và yêu cầu an toàn tối thiểu
 
@@ -102,7 +102,7 @@ Table: Công cụ và vai trò
 |---|---|---|
 | Docker, Docker Compose | Nền tảng container | Triển khai ứng dụng và môi trường kiểm thử |
 | Nginx | Reverse proxy | Chặn /metrics, giới hạn tốc độ đăng nhập (F03) |
-| Semgrep | SAST (phân tích tĩnh) | Đọc mã nguồn (không chạy) để chỉ ra các mẫu lỗi; trong phạm vi báo cáo, xác định chính xác dòng SQL injection của F01 (đăng nhập) và F02 (tìm kiếm) |
+| Semgrep | SAST (phân tích tĩnh) | Đọc mã nguồn (không chạy) để chỉ ra các mẫu lỗi; trong phạm vi báo cáo, xác định chính xác dòng SQL injection của F01 (đăng nhập) và path traversal của F02 (route tải tệp) |
 | Gitleaks | Quét secret | Tìm khóa/bí mật lộ trong mã nguồn |
 | node:test (Supertest) | Kiểm thử động | Chạy ứng dụng thật, tái hiện lỗi *trước khi vá* (đỏ) và kiểm chứng *sau khi vá* (xanh) |
 | Conftest / OPA (Rego) | Policy as Code | Kiểm tra Dockerfile và cấu hình triển khai (F03/F04) |
@@ -117,7 +117,7 @@ Các phát hiện được đối chiếu với những chính sách và tiêu c
 
 - **GDPR** (Regulation (EU) 2016/679): khung bảo vệ dữ liệu cá nhân; dùng các Điều 5 (nguyên tắc), 25 (bảo vệ ngay từ thiết kế) và 32 (an toàn khi xử lý) làm cơ sở đánh giá dữ liệu cần bảo vệ.
 - **PCI-DSS v3.2.1**: chuẩn an toàn dữ liệu thẻ thanh toán; Yêu cầu 3.4 (PAN nếu lưu phải ở dạng không đọc được), 8.2.1 (không lưu credential ở dạng đọc được), 2.2 (cấu hình an toàn, đặc quyền tối thiểu). PCI SSC đã cho v3.2.1 *nghỉ từ 31/3/2024*; báo cáo trích v3.2.1 như **đối chiếu lịch sử** (bản hiện hành là v4.0.1, các số điều có thay đổi, ví dụ 3.4 → 3.5.1).
-- **OWASP Top 10 2021 & CWE**: phân loại loại lỗi — A03 Injection/CWE-89 (F01 ở đăng nhập và F02 ở tìm kiếm — cùng loại, khác điểm vào và tác động).
+- **OWASP Top 10 2021 & CWE**: phân loại loại lỗi — A03 Injection/CWE-89 (F01 SQL injection ở đăng nhập); A01 Broken Access Control/CWE-22 Path Traversal (F02 ở route tải tệp).
 - **CIS Docker Benchmark**: chuẩn cấu hình container an toàn — mục 4.1 (non-root), 4.9 (COPY thay ADD), 4.10 (không nhúng secret), 5.8 (hạn chế cổng) dùng cho F04. *Lưu ý:* mục 4.5 là **Content Trust** (bật chữ ký số ảnh) — khác với *ghim digest*; việc ghim digest/tránh `:latest` thuộc nhóm quản lý ảnh nền (§4), không phải 4.5.
 - **OCI image-spec / NIST SP 800-190 / NIST SSDF (SP 800-218) / SLSA**: định dạng và metadata nguồn gốc image, an toàn container và chuỗi cung ứng phần mềm (F04). Báo cáo dùng các khung này để *tham chiếu*, không tuyên bố đạt mức cụ thể (ví dụ SLSA).
 
@@ -184,11 +184,11 @@ Mỗi lỗi đi kèm một script demo (`demos/tv1`…`tv4`) tái hiện lỗi t
 
 Các cổng quét tự động được chạy trên mã nguồn và cấu hình *chưa vá* để lộ ra điểm yếu trước khi sửa.
 
-**SAST (Semgrep).** Quét toàn bộ `routes/` và `lib/` (mã *chưa vá*) cho ra **38 cảnh báo** trên 25 tệp (SQL/NoSQL injection, XSS, băm yếu, JWT secret cố định…). Đây là **cảnh báo công cụ, chưa phải 38 lỗ hổng đã xác nhận**; mỗi cảnh báo là một điểm cần rà soát thêm. Thuộc phạm vi báo cáo, phân tích tĩnh chỉ ra ba điểm: **F01** tại `login.ts` và **F02** tại `search.ts` — cùng rule `express-sequelize-injection`, trỏ đúng dòng ghép chuỗi SQL (F01 ở đăng nhập, F02 ở tìm kiếm) — cùng **băm mật khẩu MD5 không salt** tại `lib/insecurity.ts` (rule `node_md5`, CWE-327 — rủi ro lưu trữ còn lại, ngoài phạm vi vá).
+**SAST (Semgrep).** Quét toàn bộ `routes/` và `lib/` (mã *chưa vá*) cho ra **38 cảnh báo** trên 25 tệp (SQL/NoSQL injection, XSS, băm yếu, JWT secret cố định…). Đây là **cảnh báo công cụ, chưa phải 38 lỗ hổng đã xác nhận**; mỗi cảnh báo là một điểm cần rà soát thêm. Thuộc phạm vi báo cáo, phân tích tĩnh chỉ ra ba điểm: **F01** tại `login.ts` (rule `express-sequelize-injection` — SQL injection ở đăng nhập), **F02** tại `fileServer.ts` (rule `express-res-sendfile` — path traversal ở route tải tệp), cùng **băm mật khẩu MD5 không salt** tại `lib/insecurity.ts` (rule `node_md5`, CWE-327 — rủi ro lưu trữ còn lại, ngoài phạm vi vá).
 
-!fig[semgrep-overview.png](Semgrep quét toàn bộ mã nguồn chưa vá: 38 cảnh báo trên 25 tệp (cảnh báo công cụ, chưa phải lỗ hổng đã xác nhận); tô vàng F01 (`login.ts`), F02 (`search.ts`) và băm MD5 (`insecurity.ts`); lệnh `scan` trả `exit 0` nên chỉ là bước phát hiện, không tự chặn){width=16}
+!fig[semgrep-overview.png](Semgrep quét toàn bộ mã nguồn chưa vá: 38 cảnh báo trên 25 tệp (cảnh báo công cụ, chưa phải lỗ hổng đã xác nhận); tô vàng F01 (`login.ts`), F02 (`fileServer.ts`) và băm MD5 (`insecurity.ts`); lệnh `scan` trả `exit 0` nên chỉ là bước phát hiện, không tự chặn){width=16}
 
-!fig[semgrep-scan.png](Ba điểm Semgrep xác định trong phạm vi: F01 SQL injection ở đăng nhập (`login.ts`), F02 SQL injection ở tìm kiếm (`search.ts`) và băm MD5 không salt (`lib/insecurity.ts`); kèm phân loại của nhóm){width=16}
+!fig[semgrep-scan.png](Ba điểm Semgrep xác định trong phạm vi: F01 SQL injection ở đăng nhập (`login.ts`), F02 path traversal ở route tải tệp (`fileServer.ts`) và băm MD5 không salt (`lib/insecurity.ts`); kèm phân loại của nhóm){width=16}
 
 **Policy as Code (Conftest).** Quét `Dockerfile.vulnerable` cho `exit 1` với **6 thông báo vi phạm thuộc 4 nhóm luật** `deny`, đủ điều kiện làm cổng chặn phát hành (chi tiết F04 ở mục 5.4):
 
@@ -202,7 +202,7 @@ Table: Kết quả hợp nhất bốn tình huống (điều kiện → kỳ v�
 | Mã | Điều kiện kiểm thử | Kết quả mong đợi | Trước vá | Sau vá | Bằng chứng | Rủi ro còn lại |
 |---|---|---|---|---|---|---|
 | F01 | Đăng nhập bằng payload SQL + mật khẩu sai | Từ chối (401) | Cấp token, vượt xác thực | 401; đăng nhập hợp lệ vẫn 200 | `f01-f02.test.ts`; demo `tv1`; `semgrep-overview.log` | Băm MD5 không salt (ngoài phạm vi F01) |
-| F02 | Payload UNION ở tham số `q` của tìm kiếm | Không trích được bảng khác | Lộ email+hash toàn bộ Users (28 dòng) | 0 dữ liệu người dùng; tìm kiếm hợp lệ vẫn chạy | `f01-f02.test.ts`; demo `tv2`; `semgrep-overview.log` | — |
+| F02 | `GET /ftp/<tên>%2500.md` (poison null byte) | Từ chối tệp đuôi bị cấm | Đọc được `package.json.bak`, `coupons_2013.md.bak` | 403; tệp `.md` hợp lệ vẫn tải | `f01-f02.test.ts`; demo `tv2`; `semgrep-overview.log` | — |
 | F03 | `GET /metrics` từ host | Chặn truy cập từ ngoài | 200, lộ chỉ số vận hành | 404 qua proxy; backend không mở cổng host | demo `tv3`; `env-*.log`; `hardening` | Giám sát nội bộ vẫn đọc được (đúng thiết kế) |
 | F04 | Conftest trên fixture lỗi / bản vá / Dockerfile gốc | Chặn fixture lỗi, đạt bản tốt | Fixture: `exit 1`, 6 vi phạm / 4 nhóm | Bản vá & gốc: đạt; `verify` 19/19 | `conftest-fail.log`; `conftest-verify.log`; demo `tv4` | Chưa ghim digest (mới cảnh báo); TLS nội bộ |
 
@@ -246,38 +246,42 @@ Bản vá vẫn còn một giới hạn: nó chỉ xử lý injection, trong khi
 
 **Chính sách vi phạm:** GDPR Điều 32(1)(b) (bảo mật khi xử lý dữ liệu); Luật 91/2025/QH15 Điều 3 và NĐ 356/2025/NĐ-CP (biện pháp kỹ thuật bảo vệ dữ liệu cá nhân); Luật ATTTM 2015 Điều 19. **Pha DevSecOps:** Code → Test. **Kiểm soát (Security as Code):** phát hiện bằng SAST ở pha Code, chặn tái diễn bằng kiểm thử bảo mật tự động ở pha Test.
 
-## 5.2. F02 — SQL injection ở tìm kiếm sản phẩm
+## 5.2. F02 — Path traversal qua poison null byte ở route tải tệp
 
 ### Trước khi sửa
 
-Route `routes/search.ts` ghép thẳng tham số tìm kiếm `q` vào câu lệnh SQL:
+Route `routes/fileServer.ts` phục vụ tệp tĩnh trong thư mục `ftp/` qua `GET /ftp/:file`, chỉ cho phép đuôi `.md`/`.pdf`:
 
 ```typescript
-let criteria = req.query.q ?? ''
-criteria = (criteria.length <= 200) ? criteria : criteria.substring(0, 200)
-models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`)
+if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
+  file = security.cutOffPoisonNullByte(file)   // cắt tên file tại ký tự null rồi mới phục vụ
+  res.sendFile(path.resolve('ftp/', file))
+}
 ```
 
-Vì `q` đi thẳng vào chuỗi SQL, kẻ tấn công có thể đóng mệnh đề `LIKE` rồi nối một truy vấn **`UNION SELECT`** để đọc sang bảng khác. Với payload `qwert')) UNION SELECT id,email,password,role,1,2,3,4,5 FROM Users--`, máy chủ trả về cả bảng Users — **email và hash mật khẩu của mọi tài khoản** — ngay trong kết quả tìm kiếm (CWE-89, OWASP A03:2021). Đây là một sự cố lộ dữ liệu cá nhân trực tiếp, khác với F01 (vượt xác thực): cùng loại injection nhưng điểm vào và tác động khác nhau.
+Điểm yếu nằm ở chỗ `cutOffPoisonNullByte` **cắt tên file tại ký tự null rồi mới gửi**. Một tên như `package.json.bak%00.md` vẫn vượt được bộ lọc đuôi (kết thúc bằng `.md`), sau đó bị cắt thành `package.json.bak` và được trả về. Nhờ vậy kẻ tấn công **đọc được các tệp sao lưu phía máy chủ** đáng lẽ bị cấm — ví dụ `package.json.bak` (lộ cấu hình, phiên bản thư viện) hay `coupons_2013.md.bak` (mã giảm giá) (CWE-22 Path Traversal kết hợp CWE-158 Poison Null Byte, OWASP A01:2021).
 
-**Phát hiện.** Semgrep (luật `express-sequelize-injection`) chỉ đúng dòng truy vấn này — F02 là một trong các cảnh báo SAST được xác nhận (xem hình quét ở mục 4.1). Kiểm thử `test/api/security/f01-f02.test.ts` gửi payload UNION rồi khẳng định kết quả **không** chứa email hay hash người dùng; trên mã chưa sửa các ca này báo đỏ (@fig(f0102-red)). Demo `demos/tv2_f02_sqli.py` xác nhận cùng payload trích ra 28 dòng dữ liệu người dùng ở bản chưa vá (@fig(tv2)).
+**Phát hiện.** Semgrep (luật `express-res-sendfile`) chỉ đúng lời gọi `res.sendFile` nhận tên file từ người dùng — F02 là một trong các cảnh báo SAST được xác nhận (xem hình quét ở mục 4.1). Kiểm thử `test/api/security/f01-f02.test.ts` gửi `GET /ftp/package.json.bak%2500.md` và đòi nhận 403; trên mã chưa sửa các ca này báo đỏ (@fig(f0102-red)). Demo `demos/tv2_f02_pathtraversal.py` xác nhận cùng payload đọc được nội dung tệp ở bản chưa vá (@fig(tv2)).
 
 ### Sau khi sửa
 
-Dùng truy vấn tham số (bind): chuỗi tìm kiếm được truyền như **giá trị**, không ghép vào câu lệnh:
+Chặn hẳn tên file chứa ký tự null **trước** bước phục vụ, thay vì cắt bỏ rồi gửi:
 
 ```typescript
-models.sequelize.query('SELECT * FROM Products WHERE ((name LIKE :q OR description LIKE :q) AND deletedAt IS NULL) ORDER BY name',
-  { replacements: { q: `%${criteria}%` } })
+if (file && (file.includes('%00') || file.includes('\u0000'))) {
+  res.status(403)
+  next(new Error('File names cannot contain null bytes!'))
+  return
+}
 ```
 
-Sau khi sửa, cùng payload UNION chỉ được coi là một chuỗi tìm kiếm thông thường: không sản phẩm nào khớp và **không dòng dữ liệu người dùng nào bị trả về**, trong khi tìm kiếm hợp lệ (ví dụ "apple") vẫn chạy bình thường (@fig(tv2)); kiểm thử bảo mật khi đó xanh toàn bộ (@fig(f0102-green)).
+Sau khi sửa, payload `...%2500.md` bị từ chối **403**, trong khi tải tệp hợp lệ (`legal.md`) vẫn hoạt động bình thường (@fig(tv2)); kiểm thử bảo mật khi đó xanh toàn bộ (@fig(f0102-green)).
 
-!fig[tv2.png](Demo F02: payload UNION trích 28 dòng email+hash ở bản chưa vá; sau vá trả 0 dữ liệu người dùng, tìm kiếm hợp lệ vẫn chạy){width=15}
+!fig[tv2.png](Demo F02: trước vá payload null byte đọc được `package.json.bak` và `coupons_2013.md.bak`; sau vá trả 403, tệp `.md` hợp lệ vẫn tải được){width=15}
 
 !fig[f0102-green.png](Kiểm thử bảo mật F01/F02 sau khi sửa: toàn bộ 9 ca đạt){width=15}
 
-**Chính sách vi phạm:** GDPR Điều 5(1)(f), 32(1)(b); PCI-DSS 3.4 (làm lộ dữ liệu nhạy cảm); Luật 91/2025/QH15 Điều 3 và NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Điều 17 (không để lộ dữ liệu cá nhân cho bên thứ ba). **Pha DevSecOps:** Code → Test. **Kiểm soát (Security as Code):** phát hiện bằng SAST ở pha Code, chặn tái diễn bằng kiểm thử bảo mật tự động ở pha Test.
+**Chính sách vi phạm:** GDPR Điều 5(1)(f), 32(1)(b); PCI-DSS 3.4 (làm lộ dữ liệu nhạy cảm); Luật 91/2025/QH15 Điều 3 và NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Điều 17 (không để lộ dữ liệu cho bên thứ ba). **Pha DevSecOps:** Code → Test. **Kiểm soát (Security as Code):** phát hiện bằng SAST ở pha Code, chặn tái diễn bằng kiểm thử bảo mật tự động ở pha Test.
 
 ## 5.3. F03 — Lộ endpoint /metrics không xác thực
 
@@ -376,7 +380,7 @@ Lệnh `conftest verify` chạy toàn bộ chính sách đạt **19/19** ca ki�
 
 # 6. Kết luận
 
-Báo cáo minh họa quy trình **phát hiện – sửa – kiểm chứng** cho hai lỗi mã nguồn (F01 SQL injection ở đăng nhập, F02 SQL injection ở tìm kiếm), một tình huống phơi nhiễm endpoint giám sát (F03) và một tình huống cấu hình container sai **chủ động dựng** để kiểm tra bộ policy (F04). Toàn bộ được thể hiện dưới dạng Security as Code và Policy as Code trong một chuỗi kiểm soát DevSecOps chạy được, kèm log gốc và mã bằng chứng (mục 4.2).
+Báo cáo minh họa quy trình **phát hiện – sửa – kiểm chứng** cho hai lỗi mã nguồn (F01 SQL injection ở đăng nhập, F02 path traversal ở route tải tệp), một tình huống phơi nhiễm endpoint giám sát (F03) và một tình huống cấu hình container sai **chủ động dựng** để kiểm tra bộ policy (F04). Toàn bộ được thể hiện dưới dạng Security as Code và Policy as Code trong một chuỗi kiểm soát DevSecOps chạy được, kèm log gốc và mã bằng chứng (mục 4.2).
 
 Phần đóng góp của nhóm — trong phạm vi bốn tình huống — gồm: bản vá F01/F02 kèm kiểm thử hồi quy, reverse proxy và giới hạn tốc độ cho F03, và bộ luật Rego (Dockerfile + compose, 19 unit test) cho F04. Cần nói rõ phạm vi để không phóng đại: kho mã Juice Shop gốc **đã có** CI/CD, CodeQL và tạo SBOM, nên báo cáo không khẳng định dự án gốc thiếu tự động hóa bảo mật; đóng góp ở đây là các kiểm soát **bổ sung, hướng dữ liệu cá nhân**, hiện chạy cục bộ và **chưa** được nối thành required check bắt buộc trong CI.
 

@@ -2,8 +2,8 @@
 # command : conftest verify -p policy
 # argv    : docker run --rm -v E:/banhoaqua/juice-shop:/work:ro -w /work openpolicyagent/conftest:v0.71.1 verify -p policy --no-color
 # cwd     : E:\banhoaqua\juice-shop
-# time    : 2026-10-29 00:11
-# commit  : 1b831ca7e
+# time    : 2026-10-29 00:28
+# commit  : 40ed9b14b
 # tool    : openpolicyagent/conftest:v0.71.1
 # exit    : 0
 # ----- combined stdout+stderr -----

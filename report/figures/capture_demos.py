@@ -32,25 +32,26 @@ def test_blocks(out, commitline):
         s = ln.strip()
         if not s:
             continue
-        if s.startswith(('i cancelled', 'i skipped', 'i todo', 'i suites', 'i duration')):
-            continue
+        # chỉ giữ dòng cấu trúc kết quả test; bỏ log lỗi của ứng dụng + stack trace
         if '√' in ln and '×' not in ln:
             b.append(('ok', ln))
         elif '×' in ln:
             b.append(('fail', ln))
-        elif s.startswith('i fail'):
-            b.append(('fail', ln))
+        elif s.startswith('» '):
+            b.append(('out', ln))
+        elif s.startswith('i tests'):
+            b.append(('out', ln))
         elif s.startswith('i pass'):
             b.append(('ok', ln))
-        else:
-            b.append(('out', ln))
+        elif s.startswith('i fail'):
+            b.append(('fail', ln))
     return b
 
 
 def main():
-    # 1) Demo F02 — SQL injection ở tìm kiếm
-    out = runout(['python', 'report/demos/tv2_f02_sqli.py'])
-    blocks = [('cmd', 'python report/demos/tv2_f02_sqli.py   # F02 SQL injection o tim kiem san pham')]
+    # 1) Demo F02 — Path traversal qua poison null byte
+    out = runout(['python', 'report/demos/tv2_f02_pathtraversal.py'])
+    blocks = [('cmd', 'python report/demos/tv2_f02_pathtraversal.py   # F02 path traversal (poison null byte)')]
     for ln in out.split('\n'):
         if 'LỖ HỔNG' in ln:
             blocks.append(('hl', ln))
@@ -58,24 +59,24 @@ def main():
             blocks.append(('ok', ln))
         else:
             blocks.append(('out', ln))
-    render(SHOTS / 'tv2.png', 'Windows PowerShell — Demo F02: SQL injection ở tìm kiếm (trước vá 3100 / sau vá 3102)', blocks)
+    render(SHOTS / 'tv2.png', 'Windows PowerShell — Demo F02: path traversal qua poison null byte (trước vá 3100 / sau vá 3102)', blocks)
 
     # 2) f0102-green: mã đã vá (trạng thái hiện tại)
     render(SHOTS / 'f0102-green.png', 'Windows PowerShell — kiểm thử bảo mật F01/F02 SAU khi vá',
-           test_blocks(runout(TCMD), 'HEAD  test(security): F01 SQLi dang nhap + F02 SQLi tim kiem (da va)'))
+           test_blocks(runout(TCMD), 'HEAD  test(security): F01 SQLi dang nhap + F02 path traversal /ftp (da va)'))
 
-    # 3) f0102-red: swap baseline search.ts (lưu lại bản vá), chạy, rồi khôi phục
-    search = ROOT / 'routes' / 'search.ts'
-    patched = search.read_text(encoding='utf-8')
-    base = subprocess.run(['git', '-C', str(ROOT), 'show', '21219d66d:routes/search.ts'],
+    # 3) f0102-red: swap baseline fileServer.ts (lưu lại bản vá), chạy, rồi khôi phục
+    fsrv = ROOT / 'routes' / 'fileServer.ts'
+    patched = fsrv.read_text(encoding='utf-8')
+    base = subprocess.run(['git', '-C', str(ROOT), 'show', '21219d66d:routes/fileServer.ts'],
                           capture_output=True, text=True, encoding='utf-8').stdout
-    search.write_text(base, encoding='utf-8')
+    fsrv.write_text(base, encoding='utf-8')
     try:
         out = runout(TCMD)
     finally:
-        search.write_text(patched, encoding='utf-8')
+        fsrv.write_text(patched, encoding='utf-8')
     render(SHOTS / 'f0102-red.png', 'Windows PowerShell — kiểm thử bảo mật F01/F02 TRƯỚC khi vá',
-           test_blocks(out, '21219d66d  test(security): F01 SQLi dang nhap + F02 SQLi tim kiem (dang do)'))
+           test_blocks(out, '21219d66d  test(security): F01 SQLi dang nhap + F02 path traversal /ftp (dang do)'))
 
 
 if __name__ == '__main__':
