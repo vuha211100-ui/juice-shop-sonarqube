@@ -1,4 +1,4 @@
-# Policy as Code cho Dockerfile của Juice Shop — bám theo lab môn học "Policy as Code with Conftest".
+# Policy as Code cho Dockerfile của Juice Shop — theo mô hình "Policy as Code with Conftest".
 # Mỗi luật đặt tại điểm thực thi đúng thay vì các "original check" dễ bị qua mặt:
 #   Least privilege  -> USER ở STAGE CUỐI, UID số, không phải root (thay vì "có USER bất kỳ trong file")
 #   Firewall/RBAC    -> cổng quản trị/DB không được EXPOSE (giảm bề mặt tấn công)

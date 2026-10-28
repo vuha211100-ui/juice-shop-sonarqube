@@ -189,33 +189,31 @@ def main():
         elif 'rules.' in l and cur:
             files.setdefault(cur, []).append(l.rsplit('.', 1)[-1].strip())
     HI = {'routes/login.ts': 'F01 SQL injection — xác nhận',
-          'routes/basket.ts': 'cảnh báo NoSQLi (CWE-943) — gợi ý rà; IDOR xác nhận bằng test A/B (5.2)',
           'lib/insecurity.ts': 'MD5 không salt (CWE-327) — rủi ro còn lại, ngoài F01'}
     ov = [('cmd', 'semgrep scan --config owasp-top-ten.yml --config nodejsscan.yml routes/ lib/   # mã chưa vá'),
           ('out', f'{count} Code Findings trên {len(files)} tệp (CẢNH BÁO công cụ, chưa phải {count} lỗ hổng đã xác nhận) — rút gọn:')]
     for f in sorted(files, key=lambda x: (x not in HI, x)):
         rz = ', '.join(sorted(set(files[f])))[:66]
         ov.append(('hl', f'  {f:<22} {rz}   <= {HI[f]}') if f in HI else ('out', f'  {f:<22} {rz}'))
-    ov.append(('note', f'=> exit {sgrc}: semgrep scan không tự chặn (cần --error). Đây là bước PHÁT HIỆN;'))
-    ov.append(('note', '   báo cáo chọn F01 (login.ts) để vá; cảnh báo basket.ts chỉ là gợi ý rà, xem 5.2.'))
+    ov.append(('note', f'=> exit {sgrc}: semgrep scan không tự chặn (cần --error). Đây là bước PHÁT HIỆN.'))
+    ov.append(('note', '   Phạm vi mã nguồn: F01 (login.ts) và MD5 (insecurity.ts). F02 (IDOR) là lỗi kiểm'))
+    ov.append(('note', '   soát truy cập, tìm bằng rà mã + kiểm thử A/B — không do SAST phát hiện (xem 5.2).'))
     render(SHOTS / 'semgrep-overview.png', 'Windows PowerShell — Semgrep (SAST) quét toàn bộ mã nguồn chưa vá', ov,
            evid_id='semgrep-overview', rc=sgrc)
 
-    # semgrep-scan.png: lấy ĐÚNG cảnh báo thật của 3 tệp trong phạm vi + khối phân loại của nhóm (ghi rõ)
+    # semgrep-scan.png: ĐÚNG cảnh báo thật của hai tệp trong phạm vi SAST (F01 + MD5), kèm ghi chú vì sao F02 không ở đây
     def rules_of(fn):
         return ', '.join(sorted(set(files.get(fn, [])))) or '(không có)'
-    render(SHOTS / 'semgrep-scan.png', 'Windows PowerShell — Semgrep: ba điểm trong phạm vi báo cáo', [
-        ('cmd', 'semgrep ... routes/login.ts routes/basket.ts lib/insecurity.ts   # trích từ lần quét trên'),
-        ('out', 'Cảnh báo Semgrep (nguyên văn rule) tại ba tệp phạm vi:'),
+    render(SHOTS / 'semgrep-scan.png', 'Windows PowerShell — Semgrep: điểm trong phạm vi mã nguồn', [
+        ('cmd', 'semgrep ... routes/login.ts lib/insecurity.ts   # trích từ lần quét trên'),
+        ('out', 'Cảnh báo Semgrep (nguyên văn rule):'),
         ('hl', f'  routes/login.ts     {rules_of("routes/login.ts")}'),
-        ('hl', f'  routes/basket.ts    {rules_of("routes/basket.ts")}'),
         ('hl', f'  lib/insecurity.ts   {rules_of("lib/insecurity.ts")}'),
         ('out', ''),
-        ('note', 'Phân loại của nhóm (không phải output công cụ):'),
-        ('out', '  F01  login.ts    SQL injection — Semgrep chỉ đúng dòng, xác nhận bằng test + đọc mã.'),
-        ('out', '  F02  basket.ts   rule NoSQLi/CWE-943 là gợi ý vị trí; KHÔNG kết luận IDOR theo loại'),
-        ('out', '                   lỗi công cụ báo — IDOR xác nhận độc lập bằng test A/B (token A đọc giỏ B).'),
+        ('note', 'Ghi chú:'),
+        ('out', '  F01  login.ts      Semgrep trỏ đúng dòng SQL injection; xác nhận thêm bằng test + đọc mã.'),
         ('out', '  --   insecurity.ts  MD5 không salt — rủi ro lưu trữ còn lại, nằm ngoài phạm vi F01.'),
+        ('out', '  F02 (IDOR) là lỗi kiểm soát truy cập, không thuộc nhóm SAST phát hiện — xem mục 5.2.'),
     ], evid_id='semgrep-overview', rc=sgrc)
 
     # 5) Conftest (Policy as Code) quét Dockerfile.vulnerable -> gate chặn khi exit != 0 (đúng kỳ vọng)

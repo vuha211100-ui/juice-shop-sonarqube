@@ -2,11 +2,11 @@
 # command : gitleaks git /repo --log-opts=baf9dcea4..HEAD
 # argv    : docker run --rm -v E:/banhoaqua/juice-shop:/repo:ro zricethezav/gitleaks:v8.30.1 git /repo --log-opts=baf9dcea4..HEAD --no-banner
 # cwd     : E:\banhoaqua\juice-shop
-# time    : 2026-10-28 22:46
-# commit  : f66c45f14
+# time    : 2026-10-28 23:28
+# commit  : 029413259
 # tool    : zricethezav/gitleaks:v8.30.1
 # exit    : 0
 # ----- combined stdout+stderr -----
-3:46PM INF 30 commits scanned.
-3:46PM INF scanned ~1965481 bytes (1.97 MB) in 9.93s
-3:46PM INF no leaks found
+4:28PM INF 32 commits scanned.
+4:28PM INF scanned ~2038713 bytes (2.04 MB) in 10.7s
+4:28PM INF no leaks found

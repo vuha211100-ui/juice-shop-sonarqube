@@ -2,8 +2,8 @@
 # command : conftest test Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile
 # argv    : docker run --rm -v E:/banhoaqua/juice-shop:/work:ro -w /work openpolicyagent/conftest:v0.71.1 test Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile --no-color
 # cwd     : E:\banhoaqua\juice-shop
-# time    : 2026-10-28 22:46
-# commit  : f66c45f14
+# time    : 2026-10-28 23:28
+# commit  : 029413259
 # tool    : openpolicyagent/conftest:v0.71.1
 # exit    : 1
 # ----- combined stdout+stderr -----

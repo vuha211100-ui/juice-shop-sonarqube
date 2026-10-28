@@ -73,10 +73,10 @@ Sau khi đăng nhập, người dùng gọi `GET /rest/basket/:id` để xem gi�
 Table: Phương pháp thực nghiệm
 | Hạng mục | Giá trị cố định |
 |---|---|
-| Mã nguồn trước vá (baseline) | commit `21219d66d` (routes/, lib/ chưa vá) — dùng cho Semgrep và ca kiểm thử đỏ |
-| Mã nguồn sau vá | nhánh `fix/f01-f04` (HEAD) |
-| Hai môi trường | đối chứng `127.0.0.1:3100` (image gốc) ↔ triển khai `127.0.0.1:3102` (proxy + backend mạng internal) |
-| Dữ liệu | seed mặc định của Juice Shop (dữ liệu giả lập) |
+| Phiên bản mã trước khi vá | Bản mã Juice Shop gốc tại commit `21219d66d` (thư mục `routes/`, `lib/` chưa chỉnh) — dùng để quét Semgrep và chạy ca kiểm thử đỏ |
+| Phiên bản mã sau khi vá | Nhánh `fix/f01-f04` (bản vá của nhóm) |
+| Hai môi trường | Đối chứng `127.0.0.1:3100` (image gốc) ↔ triển khai `127.0.0.1:3102` (proxy + backend mạng internal) |
+| Dữ liệu thử nghiệm | Bộ dữ liệu mẫu Juice Shop tự nạp khi khởi động (người dùng, giỏ hàng, sản phẩm giả lập) |
 | Công cụ (phiên bản) | Semgrep 1.180.0; Gitleaks v8.30.1; Conftest/OPA v0.71.1; node:test + Supertest |
 | Tiêu chí đạt | F01/F02: ca kiểm thử xanh; F03: `/metrics` trả 404 từ ngoài; F04: conftest `exit 0` với bản tốt, `exit 1` với fixture lỗi |
 | Bằng chứng | `report/evidence/*.log` (kèm exit code), kiểm thử, demo (tổng hợp ở mục 4.2) |
@@ -86,7 +86,7 @@ Table: Kiểm soát an toàn tối thiểu
 |---|---|---|
 | Giảm bề mặt mạng | Chỉ reverse proxy publish cổng, chỉ trên 127.0.0.1; backend ở mạng internal | GDPR Điều 32 |
 | Không chạy root | Juice Shop UID 65532, Nginx UID 101 | CIS Docker 4.1 |
-| Đặc quyền tối thiểu | `cap_drop: ALL`, `no-new-privileges`, filesystem chỉ đọc nơi được | CIS Docker 5.3/5.12 |
+| Đặc quyền tối thiểu | `cap_drop: ALL`, `no-new-privileges`; hệ thống tệp gốc đặt chế độ chỉ đọc ở các service hỗ trợ | CIS Docker 5.3/5.12 |
 | Ghim phiên bản | Luật Rego chặn `:latest`, cảnh báo khi base image chưa ghim digest | CIS Docker Benchmark §4 |
 | Lọc đường vào | Nginx chặn /metrics, giới hạn 5 lần đăng nhập/phút | GDPR Điều 32 |
 
@@ -103,7 +103,7 @@ Table: Công cụ và vai trò
 |---|---|---|
 | Docker, Docker Compose | Nền tảng container | Triển khai ứng dụng và môi trường kiểm thử |
 | Nginx | Reverse proxy | Chặn /metrics, giới hạn tốc độ đăng nhập (F03) |
-| Semgrep | SAST (phân tích tĩnh) | Đọc mã nguồn (không chạy), chỉ đúng dòng F01; với F02 chỉ đưa *cảnh báo NoSQLi* làm gợi ý vị trí, IDOR xác nhận riêng bằng kiểm thử (xem 5.2) |
+| Semgrep | SAST (phân tích tĩnh) | Đọc mã nguồn (không chạy) để chỉ ra các mẫu lỗi; trong phạm vi báo cáo, xác định chính xác dòng SQL injection của F01 |
 | Gitleaks | Quét secret | Tìm khóa/bí mật lộ trong mã nguồn |
 | node:test (Supertest) | Kiểm thử động | Chạy ứng dụng thật, tái hiện lỗi *trước khi vá* (đỏ) và kiểm chứng *sau khi vá* (xanh) |
 | Conftest / OPA (Rego) | Policy as Code | Kiểm tra Dockerfile và cấu hình triển khai (F03/F04) |
@@ -117,7 +117,7 @@ Các phát hiện được đối chiếu với những chính sách và tiêu c
 **Quốc tế:**
 
 - **GDPR** (Regulation (EU) 2016/679): khung bảo vệ dữ liệu cá nhân; dùng các Điều 5 (nguyên tắc), 25 (bảo vệ ngay từ thiết kế) và 32 (an toàn khi xử lý) làm cơ sở đánh giá dữ liệu cần bảo vệ.
-- **PCI-DSS v3.2.1**: chuẩn an toàn dữ liệu thẻ thanh toán; Yêu cầu 3.4 (PAN nếu lưu phải ở dạng không đọc được), 8.2.1 (không lưu credential ở dạng đọc được), 2.2 (cấu hình an toàn, đặc quyền tối thiểu). PCI SSC đã cho v3.2.1 *nghỉ từ 31/3/2024*; báo cáo trích v3.2.1 như **đối chiếu lịch sử** bám theo tài liệu môn học (bản hiện hành là v4.0.1, các số điều có thay đổi, ví dụ 3.4 → 3.5.1).
+- **PCI-DSS v3.2.1**: chuẩn an toàn dữ liệu thẻ thanh toán; Yêu cầu 3.4 (PAN nếu lưu phải ở dạng không đọc được), 8.2.1 (không lưu credential ở dạng đọc được), 2.2 (cấu hình an toàn, đặc quyền tối thiểu). PCI SSC đã cho v3.2.1 *nghỉ từ 31/3/2024*; báo cáo trích v3.2.1 như **đối chiếu lịch sử** (bản hiện hành là v4.0.1, các số điều có thay đổi, ví dụ 3.4 → 3.5.1).
 - **OWASP Top 10 2021 & CWE**: phân loại loại lỗi — A03 Injection/CWE-89 (F01), A01 Broken Access Control/CWE-639 (F02).
 - **CIS Docker Benchmark**: chuẩn cấu hình container an toàn — mục 4.1 (non-root), 4.9 (COPY thay ADD), 4.10 (không nhúng secret), 5.8 (hạn chế cổng) dùng cho F04. *Lưu ý:* mục 4.5 là **Content Trust** (bật chữ ký số ảnh) — khác với *ghim digest*; việc ghim digest/tránh `:latest` thuộc nhóm quản lý ảnh nền (§4), không phải 4.5.
 - **OCI image-spec / NIST SP 800-190 / NIST SSDF (SP 800-218) / SLSA**: định dạng và metadata nguồn gốc image, an toàn container và chuỗi cung ứng phần mềm (F04). Báo cáo dùng các khung này để *tham chiếu*, không tuyên bố đạt mức cụ thể (ví dụ SLSA).
@@ -160,20 +160,18 @@ Table: Các cổng kiểm soát và vai trò đã kiểm chứng
 | Policy as Code — build | Conftest/OPA (Rego) | F03, F04 (Dockerfile, compose) | exit≠0 khi vi phạm `deny` — **đã kiểm chứng** (exit 1 trên fixture lỗi); `warn` chỉ cảnh báo |
 | Compliance as Code — runtime | Conftest + `docker inspect` | F03, F04 (container đang chạy) | đối chứng runtime, không dùng để chặn phát hành |
 
-Báo cáo bám theo **bảy pha của tài liệu lab** (*Hands-On Lab Guide: Security as Code with OWASP Juice Shop & Docker*), chỉ thay một vài công cụ bằng lựa chọn tương đương:
+Quy trình được tổ chức thành bảy bước nối tiếp theo vòng đời DevSecOps, mỗi bước gắn với một nhóm công cụ kiểm soát cụ thể:
 
-Table: Bảy pha của tài liệu lab và cách báo cáo phủ
-| Pha (tên theo tài liệu lab) | Hoạt động trong báo cáo | Công cụ |
+Table: Bảy bước của quy trình DevSecOps áp dụng
+| Bước | Hoạt động | Công cụ |
 |---|---|---|
-| 1. Environment setup | Dựng hai môi trường trước/sau vá bằng Docker | Docker Compose, Node.js |
-| 2. Policy as Code with Conftest | Kiểm chính sách Dockerfile & compose trước khi triển khai | Conftest/OPA (Rego) |
-| 3. Vulnerability discovery & regulatory mapping | Quét tĩnh tìm điểm yếu, đối chiếu điều khoản | Semgrep *(thay SonarQube — xem ghi chú)* |
-| 4. Test-Driven Security | Viết kiểm thử đỏ trước vá → xanh sau vá | node:test (Supertest) |
-| 5. Application patching | Sửa mã theo kết quả kiểm thử | TypeScript / Express |
-| 6. Compliance as Code (Chef InSpec) | Soi container đang chạy (runtime) | Conftest + `docker inspect` *(thay InSpec)* |
-| 7. Verification & deliverables | Chạy lại toàn bộ cổng kiểm soát; quét secret | Conftest, Gitleaks |
-
-Tài liệu lab Pha 3 dùng SonarQube làm SAST chính (kèm npm audit, Semgrep tùy chọn); báo cáo thay bằng Semgrep do phiên bản SonarQube của lab đã ngừng, nhưng vẫn giữ nguyên mục tiêu của pha là *phát hiện điểm yếu và ánh xạ điều khoản*. Pha 6 dùng Chef InSpec; báo cáo thay bằng Conftest + `docker inspect` cho cùng mục đích kiểm tra container đang chạy.
+| 1. Thiết lập môi trường | Dựng hai môi trường trước/sau vá bằng Docker | Docker Compose, Node.js |
+| 2. Policy as Code | Kiểm chính sách Dockerfile và compose trước khi triển khai | Conftest/OPA (Rego) |
+| 3. Phát hiện điểm yếu và đối chiếu quy định | Quét tĩnh mã nguồn, ánh xạ sang điều khoản | Semgrep |
+| 4. Test-Driven Security | Viết kiểm thử đỏ trước vá, xanh sau vá | node:test (Supertest) |
+| 5. Vá ứng dụng | Sửa mã theo kết quả kiểm thử | TypeScript / Express |
+| 6. Compliance as Code | Soi container đang chạy ở thời điểm runtime | Conftest + `docker inspect` |
+| 7. Kiểm chứng và bàn giao | Chạy lại toàn bộ cổng kiểm soát; quét secret | Conftest, Gitleaks |
 
 Hai cổng tự động dưới đây đã chạy thật. Các hình được **dựng lại từ log chạy thực** (log gốc kèm mã evidence trong thư mục `report/evidence/`); dòng kết luận PASS/chặn được tính theo **mã thoát thật** của lệnh — mỗi hình ghi kèm thời điểm chạy, commit và exit code ở chân hình.
 
@@ -181,27 +179,17 @@ Hai cổng tự động dưới đây đã chạy thật. Các hình được **
 
 !fig[conftest-verify.png](Conftest verify: 19 unit test của bộ luật Rego (13 ca Dockerfile + 6 ca compose), `exit 0` — đều đạt){width=16}
 
-Đoạn mã demo của mỗi thành viên không nằm ngoài tài liệu môn học mà **áp dụng trực tiếp** kỹ thuật được dạy ở đó:
-
-Table: Liên hệ đoạn mã demo với tài liệu môn học
-| Thành viên | Đoạn mã demo | Kỹ thuật & tài liệu môn học áp dụng |
-|---|---|---|
-| Nguyễn Toàn Thắng (F01) | `demos/tv1_f01_sqli.py`, kiểm thử `f01-f02.test.ts` | Shift-left, SAST, Test-Driven Security — slide kiến trúc DevSecOps |
-| Phạm Thị Minh Thúy (F02) | `demos/tv2_f02_idor.py`, kiểm thử phân quyền | Security as Code, kiểm thử trong CI — slide DevSecOps |
-| Đỗ Đức Quốc Anh (F03) | `demos/tv3_f03_metrics.py`, `nginx.conf` | OpSec giảm phơi nhiễm endpoint, reverse proxy & giới hạn tốc độ — slide OpSec/DevSecOps |
-| Hồ Anh Vũ (F04) | `demos/tv4_f04_policy.py`, `docker_security.rego` | Policy as Code với Conftest — hướng dẫn Policy as Code (Conftest) |
-
-Nói cách khác, mỗi thành viên chọn một kỹ thuật từ tài liệu môn học rồi hiện thực hóa nó thành đoạn mã chạy được để phát hiện hoặc chặn lỗi mình phụ trách.
+Mỗi lỗi đi kèm một script demo (`demos/tv1`…`tv4`) tái hiện lỗi trước khi vá và kiểm chứng sau khi vá; các script này được trình bày trong từng mục tương ứng ở phần 5.
 
 ## 4.1. Quét và phát hiện lỗi — kết quả thực tế
 
 Các cổng quét tự động được chạy trên mã nguồn và cấu hình *chưa vá* để lộ ra điểm yếu trước khi sửa.
 
-**SAST (Semgrep).** Quét toàn bộ `routes/` và `lib/` (mã *chưa vá*) cho ra **38 cảnh báo** trên 25 tệp (NoSQL injection, XSS, băm yếu, JWT secret cố định…). Cần nhấn mạnh: đây là **cảnh báo công cụ, chưa phải 38 lỗ hổng đã xác nhận** — mỗi cảnh báo là một *gợi ý vị trí cần rà*. Trong số đó, báo cáo tập trung ba điểm thuộc phạm vi phân công: F01 ở `login.ts` (rule `express-sequelize-injection` — chỉ đúng dòng SQL injection, đã xác nhận); một cảnh báo NoSQLi tại `basket.ts` (rule `node_nosqli_injection`, CWE-943) được dùng làm *gợi ý* để rà F02 — **bản thân rule này không phát hiện IDOR**, F02 được xác nhận độc lập bằng kiểm thử A/B (mục 5.2); và băm mật khẩu bằng MD5 không salt tại `lib/insecurity.ts` (rủi ro lưu trữ còn lại, ngoài phạm vi F01).
+**SAST (Semgrep).** Quét toàn bộ `routes/` và `lib/` (mã *chưa vá*) cho ra **38 cảnh báo** trên 25 tệp (SQL/NoSQL injection, XSS, băm yếu, JWT secret cố định…). Đây là **cảnh báo công cụ, chưa phải 38 lỗ hổng đã xác nhận**; mỗi cảnh báo là một điểm cần rà soát thêm. Ở tầng mã nguồn, phân tích tĩnh chỉ ra chính xác hai điểm thuộc phạm vi: **F01** tại `login.ts` (rule `express-sequelize-injection`, trỏ đúng dòng ghép chuỗi SQL) và **băm mật khẩu MD5 không salt** tại `lib/insecurity.ts` (rule `node_md5`, CWE-327 — rủi ro lưu trữ còn lại). Lỗi F02 thuộc loại kiểm soát truy cập, không phải loại mà SAST phát hiện được; cách tìm ra F02 trình bày ở mục 5.2.
 
-!fig[semgrep-overview.png](Semgrep quét toàn bộ mã nguồn chưa vá: 38 cảnh báo trên 25 tệp (cảnh báo công cụ, chưa phải lỗ hổng đã xác nhận); tô vàng ba điểm thuộc phạm vi; `scan` trả `exit 0` nên là bước phát hiện, không tự chặn){width=16}
+!fig[semgrep-overview.png](Semgrep quét toàn bộ mã nguồn chưa vá: 38 cảnh báo trên 25 tệp (cảnh báo công cụ, chưa phải lỗ hổng đã xác nhận); tô vàng F01 (`login.ts`) và băm MD5 (`insecurity.ts`) thuộc phạm vi; lệnh `scan` trả `exit 0` nên chỉ là bước phát hiện, không tự chặn){width=16}
 
-!fig[semgrep-scan.png](Ba điểm trong phạm vi — tách rõ phần cảnh báo nguyên văn của Semgrep và phần phân loại của nhóm: F01 (xác nhận), cảnh báo NoSQLi tại basket.ts (gợi ý rà F02, IDOR xác nhận bằng test A/B), và MD5 không salt (rủi ro còn lại)){width=16}
+!fig[semgrep-scan.png](Chi tiết hai điểm Semgrep xác định trong phạm vi: F01 SQL injection tại `login.ts` và băm MD5 không salt tại `lib/insecurity.ts`; kèm ghi chú vì sao F02 không nằm trong nhóm này){width=16}
 
 **Policy as Code (Conftest).** Quét `Dockerfile.vulnerable` cho `exit 1` với **6 thông báo vi phạm thuộc 4 nhóm luật** `deny`, đủ điều kiện làm cổng chặn phát hành (chi tiết F04 ở mục 5.4):
 
@@ -271,7 +259,7 @@ const basket = await BasketModel.findOne({ where: { id }, include: [{ model: Pro
 
 Middleware chỉ xác nhận token hợp lệ chứ không kiểm tra quyền sở hữu, nên chỉ cần đổi `/rest/basket/8` thành `/rest/basket/9` là đọc được giỏ của người khác (CWE-639, OWASP A01:2021).
 
-**Phát hiện.** Semgrep có phát một cảnh báo `node_nosqli_injection` (CWE-943) tại truy vấn này, nhưng đó là cảnh báo *NoSQL injection* — không phải IDOR; báo cáo chỉ dùng nó làm **gợi ý vị trí cần rà**. Việc thiếu kiểm tra quyền sở hữu được xác nhận **độc lập** bằng kiểm thử chéo A/B: kịch bản dựng hai tài khoản A và B, rồi dùng token của A để đọc giỏ của B. Trên mã chưa sửa, máy chủ trả về đúng giỏ của B (@fig(tv2)) và các ca tương ứng trong `f01-f02.test.ts` báo đỏ.
+**Phát hiện.** Lỗi được tìm ra bằng **rà soát mã nguồn** tuyến xử lý giỏ hàng: truy vấn `findOne({ where: { id } })` chỉ lọc theo mã giỏ lấy từ URL mà bỏ qua chủ sở hữu, trong khi middleware phía trước chỉ kiểm tra token có hợp lệ. Từ quan sát đó, giả thuyết IDOR được **kiểm chứng bằng kiểm thử động chéo A/B**: dựng hai tài khoản A và B, rồi dùng token của A gọi `GET /rest/basket/{id_của_B}`. Trên mã chưa sửa, máy chủ trả về đúng giỏ của B (@fig(tv2)); kịch bản này được tự động hóa thành ca kiểm thử trong `f01-f02.test.ts` (báo đỏ trước khi sửa). Đây là lỗi kiểm soát truy cập nên không công cụ phân tích tĩnh nào khẳng định được — bằng chứng đến từ việc đọc mã kết hợp phép thử truy cập chéo.
 
 ### Sau khi sửa
 
@@ -407,17 +395,17 @@ Kết quả bị giới hạn bởi tập kiểm thử và bộ policy đã côn
 - PCI-DSS v3.2.1 (đối chiếu lịch sử — đã nghỉ 31/3/2024; bản hiện hành v4.0.1), Yêu cầu 2.2, 3.4, 8.2.1 — pcisecuritystandards.org.
 - CIS Docker Benchmark (§4 Container Images, §5 Runtime); OWASP Top 10 2021; NIST SP 800-190; NIST SSDF (SP 800-218); OCI image-spec; SLSA v1.x (slsa.dev).
 - Công cụ (phiên bản dùng trong thực nghiệm): Semgrep 1.180.0, Gitleaks v8.30.1, Conftest/OPA v0.71.1, node:test + Supertest.
-- Tài liệu môn học: *Hands-On Lab Guide — Security as Code with OWASP Juice Shop & Docker*; *Policy as Code with Conftest*.
+- Phương pháp luận tham khảo: *Security as Code with OWASP Juice Shop & Docker*; *Policy as Code with Conftest*.
 
 # Phụ lục A — Mã nguồn chính sách Dockerfile (docker_security.rego)
 
-**Nguồn:** kế thừa cấu trúc và các luật cốt lõi từ Appendix A.1 của tài liệu lab (`Policy_as_code_Lab ConfTest.docx`); phần nhóm điều chỉnh/bổ sung: bỏ luật HEALTHCHECK, gộp provenance vào SUPPLY-CHAIN, và **tự viết luật `SECRET-IN-IMAGE`** (xem mục 5.4). Namespace `dockerfile`, 8 luật `deny`; bộ kiểm thử `docker_security_test.rego` có 13 ca. Mỗi thông báo vi phạm trích kèm điều khoản chuẩn quốc tế và Việt Nam (Luật 91/2025/QH15 Đ.3; NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Đ.19). Chạy: `conftest test <Dockerfile> -p juice-shop/policy --namespace dockerfile`.
+**Nguồn:** kế thừa cấu trúc và các luật nền tảng từ một mẫu Policy-as-Code tham khảo; phần nhóm điều chỉnh/bổ sung: bỏ luật HEALTHCHECK, gộp provenance vào SUPPLY-CHAIN, và **tự viết luật `SECRET-IN-IMAGE`** (xem mục 5.4). Namespace `dockerfile`, 8 luật `deny`; bộ kiểm thử `docker_security_test.rego` có 13 ca. Mỗi thông báo vi phạm trích kèm điều khoản chuẩn quốc tế và Việt Nam (Luật 91/2025/QH15 Đ.3; NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Đ.19). Chạy: `conftest test <Dockerfile> -p juice-shop/policy --namespace dockerfile`.
 
 !include[policy/docker_security.rego]
 
 # Phụ lục B — Mã nguồn chính sách docker-compose (compose.rego)
 
-**Nguồn:** **nhóm tự viết** cho docker-compose — lab chỉ enforce trên manifest Kubernetes, nhóm chuyển các ý tưởng least-privilege/firewall/secret sang định dạng triển khai thật. Namespace `compose`, 5 luật `deny` (chặn backend mở cổng host, bind ngoài loopback, privileged, mount docker.sock, secret nội tuyến); bộ kiểm thử `compose_test.rego` có 6 ca. Thông báo vi phạm trích kèm điều khoản chuẩn quốc tế và Việt Nam (Luật 91/2025/QH15 Đ.3; NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Đ.19). Chạy: `conftest test docker-compose.yml -p juice-shop/policy --namespace compose`.
+**Nguồn:** **nhóm tự viết** cho docker-compose — mẫu tham khảo chỉ áp dụng trên manifest Kubernetes, nhóm chuyển các ý tưởng least-privilege/firewall/secret sang định dạng triển khai thật. Namespace `compose`, 5 luật `deny` (chặn backend mở cổng host, bind ngoài loopback, privileged, mount docker.sock, secret nội tuyến); bộ kiểm thử `compose_test.rego` có 6 ca. Thông báo vi phạm trích kèm điều khoản chuẩn quốc tế và Việt Nam (Luật 91/2025/QH15 Đ.3; NĐ 356/2025/NĐ-CP; Luật ATTTM 2015 Đ.19). Chạy: `conftest test docker-compose.yml -p juice-shop/policy --namespace compose`.
 
 !include[policy/compose.rego]
 
