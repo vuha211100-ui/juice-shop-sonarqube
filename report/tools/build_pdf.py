@@ -33,6 +33,8 @@ MEMBERS = [
 ]
 DATE = 'Năm học 2026'
 
+FIG_MAP = {}   # tên hình (không .png) -> số thứ tự, dùng để phân giải @fig(...)
+
 CHROMES = [
     os.environ.get('CHROME', ''),
     r'C:\Program Files\Google\Chrome\Application\chrome.exe',
@@ -72,6 +74,7 @@ def inline(t):
 
     t = re.sub(r'`([^`]+)`', stash, t)
     t = html.escape(t)
+    t = re.sub(r'@fig\(([^)]+)\)', lambda m: 'Hình ' + str(FIG_MAP.get(m.group(1), '?')), t)
     t = re.sub(r'\[([^\]]+)\]\((https?://[^)]+)\)', r'<a href="\2">\1</a>', t)
     t = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', t)
     t = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'<em>\1</em>', t)
@@ -166,7 +169,11 @@ def convert(md):
 
 
 def build():
-    body, toc = convert(SRC.read_text(encoding='utf-8'))
+    md = SRC.read_text(encoding='utf-8')
+    global FIG_MAP
+    FIG_MAP = {pathlib.Path(m.group(1)).stem: i
+               for i, m in enumerate(re.finditer(r'!fig\[([^\]]+)\]', md), 1)}
+    body, toc = convert(md)
     toc_html = ['<nav class="toc"><h1>Mục lục</h1>']
     for lvl, txt, anc in toc:
         toc_html.append(f'<div class="toc{lvl}"><a href="#{anc}">{inline(txt)}</a></div>')
@@ -185,12 +192,13 @@ def build():
     h3 { font-size: 12.5pt; margin: 10pt 0 4pt; }
     h4 { font-size: 12pt; margin: 8pt 0 3pt; font-style: italic; }
     h1.appendix { page-break-before: always; }
+    h1,h2,h3,h4 { break-after: avoid; page-break-after: avoid; }
     p { margin: 5pt 0; text-align: justify; }
     ul { margin: 5pt 0 5pt 0; padding-left: 20pt; }
     li { margin: 2pt 0; text-align: justify; }
     code { font-family: Consolas, "Courier New", monospace; font-size: 10.5pt; background: #f3f5f7; padding: 0 2px; border-radius: 3px; }
-    pre.code { background: #f6f8fa; border: 1px solid #d8dee4; border-radius: 5px; padding: 8px 10px; font-family: Consolas, "Courier New", monospace; font-size: 9pt; line-height: 1.4; white-space: pre-wrap; word-break: break-word; margin: 6pt 0; }
-    pre.code code { background: none; font-size: 9pt; padding: 0; }
+    pre.code { background: #f6f8fa; border: 1px solid #d8dee4; border-radius: 5px; padding: 7px 10px; font-family: Consolas, "Courier New", monospace; font-size: 8.5pt; line-height: 1.3; white-space: pre-wrap; word-break: break-word; margin: 6pt 0; }
+    pre.code code { background: none; font-size: 8.5pt; padding: 0; }
     figure { margin: 10pt 0; text-align: center; page-break-inside: avoid; }
     figure.fig img { border: 1px solid #d8dee4; border-radius: 4px; }
     figcaption { font-size: 10.5pt; color: #333; font-style: italic; margin-top: 4pt; }
@@ -238,7 +246,29 @@ def build():
     html_path.unlink(missing_ok=True)
     if not OUT_PDF.exists():
         sys.exit('Không tạo được PDF.')
+    add_page_numbers(OUT_PDF)
     print('đã dựng', OUT_PDF, f'({OUT_PDF.stat().st_size // 1024} KB)')
+
+
+def add_page_numbers(pdf):
+    """Đánh số trang ở giữa đáy mỗi trang (bỏ bìa). Cần pymupdf; thiếu thì bỏ qua."""
+    try:
+        import fitz
+    except ImportError:
+        print('(bỏ qua đánh số trang: cần `pip install pymupdf`)')
+        return
+    doc = fitz.open(pdf)
+    for i, page in enumerate(doc):
+        if i == 0:                       # bỏ trang bìa
+            continue
+        r = page.rect
+        page.insert_textbox(fitz.Rect(0, r.height - 32, r.width, r.height - 14),
+                            str(i + 1), fontsize=10, align=1, color=(0.3, 0.3, 0.3))
+    tmp = pdf.with_suffix('.np.pdf')
+    doc.save(str(tmp))
+    doc.close()
+    pdf.unlink()
+    tmp.replace(pdf)
 
 
 if __name__ == '__main__':
