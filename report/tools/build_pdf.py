@@ -189,6 +189,7 @@ def build():
 
     members = ''.join(f'<tr><td>{n}</td><td>{code}</td><td>{job}</td></tr>' for n, code, job in MEMBERS)
     title_html = TITLE.replace('\n', '<br/>')
+    logo_uri = img_data_uri('ptit-logo.jpeg')
 
     css = """
     @page { size: A4; margin: 2.2cm 2cm; }
@@ -216,12 +217,15 @@ def build():
     thead th { background: #0b2a4a; color: #fff; font-weight: bold; }
     tbody tr:nth-child(even) { background: #f3f6f9; }
     a { color: #0b4ea2; text-decoration: none; }
-    .cover { text-align: center; height: 24.5cm; display: flex; flex-direction: column; justify-content: center; page-break-after: always; }
-    .cover .school { font-size: 13pt; text-transform: uppercase; letter-spacing: .3px; }
-    .cover .big { font-size: 22pt; font-weight: bold; color: #0b2a4a; margin: 26pt 20pt; line-height: 1.3; }
+    .cover { text-align: center; height: 24.5cm; display: flex; flex-direction: column; justify-content: flex-start; padding-top: 0.8cm; page-break-after: always; }
+    .cover .inst { font-size: 15pt; font-weight: bold; text-transform: uppercase; letter-spacing: .3px; color: #0b2a4a; }
+    .cover .faculty { font-size: 13pt; font-weight: bold; text-transform: uppercase; margin-top: 3pt; }
+    .cover .logo { width: 3cm; height: 3cm; margin: 20pt auto 14pt; }
+    .cover .reporttype { font-size: 15pt; font-weight: bold; letter-spacing: 1px; }
+    .cover .big { font-size: 21pt; font-weight: bold; color: #0b2a4a; margin: 16pt 20pt; line-height: 1.3; }
     .cover .course { font-size: 14pt; margin-top: 6pt; }
-    .cover table { width: auto; margin: 26pt auto 0; font-size: 12.5pt; }
-    .cover .date { margin-top: 26pt; font-size: 12.5pt; }
+    .cover table { width: auto; margin: 20pt auto 0; font-size: 12.5pt; }
+    .cover .date { margin-top: 20pt; font-size: 12.5pt; }
     nav.toc { page-break-after: always; }
     nav.toc h1 { border: none; }
     .toc1 { font-weight: bold; margin: 6pt 0 2pt; }
@@ -231,7 +235,10 @@ def build():
 
     doc = f"""<!doctype html><html lang="vi"><head><meta charset="utf-8"><style>{css}</style></head><body>
     <section class="cover">
-      <div class="school">{SCHOOL}</div>
+      <div class="inst">Học viện Công nghệ Bưu chính Viễn thông</div>
+      <div class="faculty">Khoa An toàn thông tin</div>
+      <img class="logo" src="{logo_uri}"/>
+      <div class="reporttype">BÁO CÁO HỌC PHẦN</div>
       <div class="big">{title_html}</div>
       <div class="course">{COURSE}</div>
       <table><thead><tr><th>Thành viên</th><th>MSSV</th><th>Lỗi phụ trách</th></tr></thead>

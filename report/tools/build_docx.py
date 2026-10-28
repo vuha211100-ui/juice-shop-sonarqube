@@ -200,14 +200,20 @@ def build():
         field(fp, 'PAGE', '')
 
     # ----- bìa -----
-    for _ in range(4):
-        doc.add_paragraph()
+    doc.add_paragraph()
     p = doc.add_paragraph(); p.alignment = ALIGN.CENTER
-    r = p.add_run(SCHOOL); r.bold = True; r.font.size = Pt(13)
+    r = p.add_run('HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG'); r.bold = True; r.font.size = Pt(15); r.font.color.rgb = NAVY
+    p = doc.add_paragraph(); p.alignment = ALIGN.CENTER
+    r = p.add_run('KHOA AN TOÀN THÔNG TIN'); r.bold = True; r.font.size = Pt(13)
+    p = doc.add_paragraph(); p.alignment = ALIGN.CENTER
+    p.paragraph_format.space_before = Pt(18); p.paragraph_format.space_after = Pt(10)
+    p.add_run().add_picture(str(SHOTS / 'ptit-logo.jpeg'), width=Cm(3.3))
+    p = doc.add_paragraph(); p.alignment = ALIGN.CENTER
+    r = p.add_run('BÁO CÁO HỌC PHẦN'); r.bold = True; r.font.size = Pt(15)
     doc.add_paragraph()
     for line in TITLE:
         p = doc.add_paragraph(); p.alignment = ALIGN.CENTER
-        r = p.add_run(line); r.bold = True; r.font.size = Pt(20); r.font.color.rgb = NAVY
+        r = p.add_run(line); r.bold = True; r.font.size = Pt(19); r.font.color.rgb = NAVY
     doc.add_paragraph()
     p = doc.add_paragraph(); p.alignment = ALIGN.CENTER
     p.add_run(COURSE).font.size = Pt(14)
