@@ -91,6 +91,8 @@ Table: Công cụ và vai trò
 | node:test (Supertest) | Kiểm thử động | Chạy ứng dụng thật, tái hiện lỗi *trước khi vá* (đỏ) và kiểm chứng *sau khi vá* (xanh) |
 | Conftest / OPA (Rego) | Policy as Code | Kiểm tra Dockerfile và cấu hình triển khai (F03/F04) |
 
+**Giới hạn của phân tích tĩnh.** SAST (Semgrep) chỉ *tìm ra mẫu lỗi* trên mã nguồn, **không chứng minh được hành vi khi chạy** — ví dụ nó không biết một endpoint xoá dữ liệu có thực sự xoá hay chỉ ghi nhận yêu cầu, hay một API có trả về đầy đủ số thẻ hay không. Những điều đó phải do **kiểm thử động** (node:test) và **rà soát của con người** khẳng định. Vì vậy báo cáo kết hợp bốn lớp — SAST, kiểm thử động, Policy as Code (build-time) và Compliance as Code (runtime) — thay vì dựa vào một công cụ duy nhất.
+
 ## 3.2. Chính sách và tiêu chuẩn đối chiếu
 
 Các phát hiện được đối chiếu với chính sách/tiêu chuẩn phổ biến, không phải quy ước tự đặt. Nhóm dùng **song song** khung quốc tế và pháp luật Việt Nam về bảo vệ dữ liệu cá nhân.
@@ -98,7 +100,7 @@ Các phát hiện được đối chiếu với chính sách/tiêu chuẩn phổ
 **Quốc tế:**
 
 - **GDPR** (Regulation (EU) 2016/679): khung bảo vệ dữ liệu cá nhân; dùng các Điều 5 (nguyên tắc), 25 (bảo vệ ngay từ thiết kế) và 32 (an toàn khi xử lý) làm cơ sở đánh giá dữ liệu cần bảo vệ.
-- **PCI-DSS**: chuẩn an toàn dữ liệu thẻ thanh toán; Yêu cầu 3.4 (không lưu/không lộ số thẻ đầy đủ) và 8.3 (không nhúng bí mật).
+- **PCI-DSS v3.2.1**: chuẩn an toàn dữ liệu thẻ thanh toán; Yêu cầu 3.4 (không lưu/không lộ số thẻ đầy đủ), 8.3 (không nhúng bí mật), 2.2.x (không chạy root). *Báo cáo dùng nhất quán đánh số theo v3.2.1* — ở PCI-DSS v4.0 các số này thay đổi (ví dụ 3.4 → 3.5.1).
 - **OWASP Top 10 2021 & CWE**: phân loại loại lỗi — A03 Injection/CWE-89 (F01), A01 Broken Access Control/CWE-639 (F02).
 - **CIS Docker Benchmark**: chuẩn cấu hình container an toàn — các mục 4.1, 4.5, 4.9, 4.10, 5.8 dùng cho F04.
 - **SLSA / OCI image-spec / NIST SP 800-190**: nguồn gốc, toàn vẹn image và an toàn container (F04).
@@ -290,7 +292,8 @@ Toàn bộ việc phát hiện và chống tái diễn bốn lỗi được vi�
 Hai nhóm kiểm soát trong hình:
 
 - **Security as Code:** quét secret (Gitleaks), SAST (Semgrep) cho F01/F02, và kiểm thử bảo mật `f01-f02.test.ts` (đỏ trước vá, xanh sau vá).
-- **Policy as Code:** luật Rego cho Dockerfile (F04) và cho `docker-compose` (F03) — chặn cấu hình mở cổng backend hay chạy root; kiểm tra lại container đang chạy bằng `docker inspect`.
+- **Policy as Code (build-time):** luật Rego cho Dockerfile (F04) và cho `docker-compose` (F03) — chặn cấu hình mở cổng backend hay chạy root **trước khi triển khai**.
+- **Compliance as Code (runtime):** kiểm tra **container đang chạy** bằng `docker inspect` + luật Rego runtime (`report/policy/runtime.rego`, `checks/hardening.py`) — xác nhận non-root, drop capability, chỉ proxy mở cổng loopback. So sánh container đối chứng (trước vá) với bản triển khai (sau vá) chính là cặp ca *lỗi cố ý / đạt* của kiểm tra tuân thủ.
 
 Các kiểm soát này được viết thành mã, chạy lặp lại được — hiện chạy cục bộ (xem `DEMO.md`), và có thể ghép thành một chuỗi cổng (gate) trong CI. Mỗi cổng trả PASS/WARN/FAIL; chỉ mức **FAIL (luật `deny`)** mới chặn phát hành, còn mức **WARN (luật `warn`)** chỉ cảnh báo, không chặn. Trong `compose.rego`, các luật `cap_drop`/`read_only` là mức WARN (khuyến cáo), còn các luật mở cổng backend, bind ngoài loopback, privileged, mount docker.sock, secret nội tuyến là mức FAIL (chặn).
 
@@ -301,7 +304,7 @@ Table: Các cổng kiểm soát và lệnh chạy
 | SAST | Semgrep | F01, F02 | có |
 | Kiểm thử bảo mật | node:test (Supertest) | F01, F02 (đỏ→xanh) | có |
 | Policy as Code — build | Conftest/OPA (Rego) | F03, F04 (Dockerfile, compose) | có — luật `deny`; luật `warn` chỉ cảnh báo |
-| Policy as Code — runtime | Conftest + `docker inspect` | F03, F04 (container đang chạy) | cảnh báo |
+| Compliance as Code — runtime | Conftest + `docker inspect` | F03, F04 (container đang chạy) | cảnh báo |
 
 Lệnh chạy cụ thể cho từng cổng và từng demo được ghi trong `DEMO.md` (thư mục gốc) và `report/HUONG_DAN_DEMO.md`.
 
@@ -372,7 +375,7 @@ Bốn lỗi an toàn (hai lỗi mã nguồn F01/F02, hai lỗi triển khai F03/
 - OWASP Juice Shop — https://owasp.org/www-project-juice-shop/
 - GDPR, Regulation (EU) 2016/679, Điều 5, 25, 32.
 - Pháp luật Việt Nam: Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân (Điều 3, 26, 27); Luật An toàn thông tin mạng 2015 (86/2015/QH13, Điều 16, 17, 19); TCVN 11930:2017.
-- CIS Docker Benchmark; PCI DSS v4.0; OWASP Top 10 2021; SLSA.
+- CIS Docker Benchmark; PCI-DSS v3.2.1 (Yêu cầu 3.4, 8.3, 2.2.x); OWASP Top 10 2021; SLSA.
 - Công cụ: Semgrep, Gitleaks, node:test (Supertest), Conftest/OPA.
 - Tài liệu môn học: bộ slide DevSecOps và hướng dẫn Policy as Code (Conftest).
 
