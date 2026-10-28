@@ -17,9 +17,9 @@ Table: Danh mục từ viết tắt
 
 # 1. Giới thiệu và phạm vi
 
-Báo cáo đánh giá an toàn ứng dụng **OWASP Juice Shop v20.2.0** theo hướng bảo vệ dữ liệu người dùng. Nhóm bốn thành viên, mỗi người phân tích và xử lý một lỗi an toàn: hai lỗi thuộc mã nguồn và hai lỗi thuộc triển khai/vận hành. Mỗi lỗi trình bày theo mạch **trước khi sửa → sau khi sửa**, gồm: cách phát hiện, cách xử lý, chính sách bị vi phạm, pha DevSecOps tương ứng và đoạn mã demo.
+Báo cáo đánh giá an toàn ứng dụng **OWASP Juice Shop v20.2.0** dưới góc độ bảo vệ dữ liệu người dùng. Bốn thành viên thực hiện, mỗi người chịu trách nhiệm một lỗi an toàn: hai lỗi nằm ở mã nguồn, hai lỗi ở khâu triển khai và vận hành. Các lỗi đều được trình bày theo mạch **trước khi sửa → sau khi sửa**, lần lượt gồm cách phát hiện, cách xử lý, chính sách bị vi phạm, pha DevSecOps tương ứng và đoạn mã demo.
 
-Để chứng minh, nhóm chạy cùng một kịch bản trên hai môi trường: **trước khi sửa** là một container chạy image gốc (127.0.0.1:3100), **sau khi sửa** là bản triển khai đã xử lý qua reverse proxy (127.0.0.1:3102). Bên trong, cổng 3000 là cổng mặc định của Juice Shop trong container; ứng dụng đã xử lý lắng nghe 3000 nhưng không mở ra máy chủ mà chỉ cho reverse proxy (cổng 3102) truy cập qua mạng nội bộ; cổng 3100 là container đối chứng chạy image gốc để so sánh. Juice Shop là ứng dụng cố ý chứa lỗ hổng để huấn luyện; các phát hiện nhằm minh họa quy trình, không phải đánh giá dự án gốc.
+Mỗi kịch bản được chạy song song trên hai môi trường để đối chiếu: bản **trước khi sửa** là container chạy image gốc (127.0.0.1:3100), còn bản **sau khi sửa** là bản triển khai đã qua reverse proxy (127.0.0.1:3102). Bên trong container, cổng 3000 là cổng mặc định của Juice Shop; bản đã xử lý vẫn lắng nghe cổng này nhưng không phơi ra host, chỉ reverse proxy (cổng 3102) truy cập được qua mạng nội bộ. Cổng 3100 dành cho container đối chứng chạy image gốc để so sánh. Cũng cần nhắc lại rằng Juice Shop cố ý chứa lỗ hổng phục vụ huấn luyện, nên các phát hiện ở đây minh họa quy trình chứ không nhằm đánh giá dự án gốc.
 
 Table: Phân công thành viên
 | Thành viên | Lỗi phụ trách | Nhóm lỗi | Pha DevSecOps |
@@ -31,7 +31,7 @@ Table: Phân công thành viên
 
 # 2. Ứng dụng Juice Shop và dữ liệu cần bảo vệ
 
-Juice Shop là ứng dụng web thương mại điện tử mô phỏng (bán nước ép), do OWASP phát hành để huấn luyện an toàn ứng dụng. Ứng dụng là một Single Page Application với các thành phần sau:
+Juice Shop là một ứng dụng web thương mại điện tử mô phỏng (bán nước ép) do OWASP phát hành nhằm huấn luyện an toàn ứng dụng. Về kiến trúc, đây là một Single Page Application gồm các thành phần sau:
 
 Table: Thành phần của ứng dụng Juice Shop
 | Thành phần | Công nghệ | Vai trò |
@@ -43,7 +43,7 @@ Table: Thành phần của ứng dụng Juice Shop
 | Giám sát | prom-client, endpoint `/metrics` | Xuất chỉ số dạng Prometheus |
 | Đóng gói | Docker image distroless, chạy UID 65532 | Triển khai bằng container |
 
-Các thành phần này đều liên quan tới bốn lỗi được phân tích: REST API/ORM (F01, F02), endpoint giám sát (F03) và cách đóng gói container (F04). Yêu cầu bảo vệ dữ liệu được xác định theo GDPR (nguyên tắc tại Điều 5, nghĩa vụ an toàn tại Điều 32) và PCI-DSS cho dữ liệu thẻ thanh toán; đồng thời đối chiếu pháp luật Việt Nam — **Nghị định 13/2023/NĐ-CP** về bảo vệ dữ liệu cá nhân và **Luật An toàn thông tin mạng 2015** (chi tiết ở mục 3.2).
+Cả bốn lỗi được phân tích đều gắn với những thành phần này: REST API và ORM (F01, F02), endpoint giám sát (F03) cùng cách đóng gói container (F04). Yêu cầu bảo vệ dữ liệu được xác định theo GDPR (nguyên tắc ở Điều 5, nghĩa vụ an toàn ở Điều 32) và PCI-DSS cho dữ liệu thẻ thanh toán. Song song với khung quốc tế, báo cáo còn đối chiếu pháp luật Việt Nam, gồm **Nghị định 13/2023/NĐ-CP** về bảo vệ dữ liệu cá nhân và **Luật An toàn thông tin mạng 2015** (chi tiết ở mục 3.2).
 
 Table: Dữ liệu cần bảo vệ và cơ sở chính sách
 | Dữ liệu | Yêu cầu bảo vệ | Cơ sở chính sách |
@@ -58,15 +58,15 @@ Table: Dữ liệu cần bảo vệ và cơ sở chính sách
 
 ## 2.1. Nghiệp vụ đăng ký và đăng nhập
 
-Người dùng đăng ký qua `POST /api/Users` và đăng nhập qua `POST /rest/user/login`. Route `routes/login.ts` truy vấn bảng Users; nếu khớp thì cấp JWT và mã giỏ hàng. Ranh giới tin cậy quan trọng: email do client gửi đi thẳng vào câu lệnh SQL — đây là gốc của lỗi **F01**.
+Người dùng đăng ký qua `POST /api/Users` và đăng nhập qua `POST /rest/user/login`. Route `routes/login.ts` truy vấn bảng Users, nếu khớp thì cấp JWT kèm mã giỏ hàng. Vấn đề nằm ở ranh giới tin cậy: email do client gửi lên đi thẳng vào câu lệnh SQL, và đó chính là gốc của lỗi **F01**.
 
 ## 2.2. Nghiệp vụ giỏ hàng và thanh toán
 
-Sau khi đăng nhập, người dùng gọi `GET /rest/basket/:id` để xem giỏ. Route `routes/basket.ts` tìm giỏ theo `id` trên URL nhưng không kiểm tra giỏ có thuộc người gọi hay không — gốc của lỗi **F02**. Dữ liệu giỏ hàng phản ánh thói quen mua sắm của người dùng nên cần được bảo vệ theo quyền sở hữu.
+Sau khi đăng nhập, người dùng gọi `GET /rest/basket/:id` để xem giỏ. Route `routes/basket.ts` tìm giỏ theo `id` trên URL nhưng bỏ qua việc kiểm tra giỏ đó có thuộc về người gọi hay không, và đây là gốc của lỗi **F02**. Vì dữ liệu giỏ hàng phản ánh thói quen mua sắm, nó cần được bảo vệ chặt theo quyền sở hữu.
 
 # 3. Môi trường triển khai và yêu cầu an toàn tối thiểu
 
-Ứng dụng chạy bằng Docker trên Windows (WSL2), triển khai bằng `docker-compose.yml`. Nhóm áp dụng các yêu cầu an toàn tối thiểu theo CIS Docker Benchmark và nguyên tắc giảm bề mặt tấn công.
+Ứng dụng chạy bằng Docker trên Windows (WSL2) và được triển khai qua `docker-compose.yml`. Các yêu cầu an toàn tối thiểu ở đây bám theo CIS Docker Benchmark cùng nguyên tắc giảm bề mặt tấn công.
 
 Table: Kiểm soát an toàn tối thiểu
 | Kiểm soát | Cách thực hiện | Tiêu chuẩn |
@@ -77,11 +77,11 @@ Table: Kiểm soát an toàn tối thiểu
 | Ghim phiên bản | Luật Rego chặn `:latest`, cảnh báo khi base image chưa ghim digest | CIS Docker 4.5 |
 | Lọc đường vào | Nginx chặn /metrics, giới hạn 5 lần đăng nhập/phút | GDPR Điều 32 |
 
-Các kiểm soát trên được **xác minh trên container đang chạy** bằng `docker inspect` (Compliance as Code), chứng minh chúng được áp dụng thực tế chứ không chỉ khai trong file cấu hình:
+Những kiểm soát này được **xác minh ngay trên container đang chạy** bằng `docker inspect` (Compliance as Code), cho thấy chúng thực sự có hiệu lực chứ không chỉ nằm trên file cấu hình:
 
 !fig[hardening.png](Bằng chứng runtime qua `docker inspect`: cả ba container chạy non-root (USER), `cap_drop: ALL`, `no-new-privileges`; backend không mở cổng host (CỔNG HOST = “-”, mạng internal), chỉ proxy mở loopback 127.0.0.1:3102){width=16}
 
-Giới hạn còn lại: container đối chứng 3100 chạy image gốc chỉ dùng để so sánh trước/sau; HTTP nội bộ chưa dùng TLS; base image chưa ghim theo digest (luật Rego hiện mới cảnh báo, chưa bắt buộc trên image đối chứng).
+Vẫn còn một số giới hạn: container đối chứng 3100 chạy image gốc chỉ phục vụ so sánh trước/sau; HTTP nội bộ chưa bật TLS; base image chưa ghim theo digest (luật Rego hiện mới cảnh báo chứ chưa bắt buộc trên image đối chứng).
 
 ## 3.1. Công cụ sử dụng
 
@@ -95,11 +95,11 @@ Table: Công cụ và vai trò
 | node:test (Supertest) | Kiểm thử động | Chạy ứng dụng thật, tái hiện lỗi *trước khi vá* (đỏ) và kiểm chứng *sau khi vá* (xanh) |
 | Conftest / OPA (Rego) | Policy as Code | Kiểm tra Dockerfile và cấu hình triển khai (F03/F04) |
 
-**Giới hạn của phân tích tĩnh.** SAST (Semgrep) chỉ *tìm ra mẫu lỗi* trên mã nguồn, **không chứng minh được hành vi khi chạy** — ví dụ nó không biết một endpoint xoá dữ liệu có thực sự xoá hay chỉ ghi nhận yêu cầu, hay một API có trả về đầy đủ số thẻ hay không. Những điều đó phải do **kiểm thử động** (node:test) và **rà soát của con người** khẳng định. Vì vậy báo cáo kết hợp bốn lớp — SAST, kiểm thử động, Policy as Code (build-time) và Compliance as Code (runtime) — thay vì dựa vào một công cụ duy nhất.
+**Giới hạn của phân tích tĩnh.** SAST (Semgrep) chỉ *tìm ra mẫu lỗi* trên mã nguồn và **không chứng minh được hành vi khi chạy**. Chẳng hạn, nó không biết một endpoint xoá dữ liệu có thực sự xoá hay chỉ ghi nhận yêu cầu, cũng không biết một API có trả về đầy đủ số thẻ hay không. Những điều đó phải nhờ **kiểm thử động** (node:test) và **rà soát của con người** khẳng định. Chính vì thế, báo cáo kết hợp bốn lớp gồm SAST, kiểm thử động, Policy as Code (build-time) và Compliance as Code (runtime), thay vì trông cậy vào một công cụ duy nhất.
 
 ## 3.2. Chính sách và tiêu chuẩn đối chiếu
 
-Các phát hiện được đối chiếu với chính sách/tiêu chuẩn phổ biến, không phải quy ước tự đặt. Nhóm dùng **song song** khung quốc tế và pháp luật Việt Nam về bảo vệ dữ liệu cá nhân.
+Các phát hiện được đối chiếu với những chính sách và tiêu chuẩn phổ biến chứ không phải quy ước tự đặt ra, sử dụng **song song** khung quốc tế lẫn pháp luật Việt Nam về bảo vệ dữ liệu cá nhân.
 
 **Quốc tế:**
 
@@ -115,25 +115,25 @@ Các phát hiện được đối chiếu với chính sách/tiêu chuẩn phổ
 - **Luật An toàn thông tin mạng 2015 (86/2015/QH13)**: **Điều 16** — nguyên tắc bảo vệ thông tin cá nhân; **Điều 17** — không cung cấp/chia sẻ thông tin cá nhân cho bên thứ ba khi chưa được đồng ý (liên quan F02/F03); **Điều 19** — bảo đảm an toàn thông tin cá nhân trên mạng bằng biện pháp quản lý, kỹ thuật và *tuân thủ tiêu chuẩn, quy chuẩn kỹ thuật*.
 - **TCVN 11930:2017** — tiêu chuẩn kỹ thuật quốc gia *Yêu cầu cơ bản về an toàn hệ thống thông tin theo cấp độ*, làm cơ sở kỹ thuật cho cấu hình triển khai tối thiểu (F03/F04).
 
-Ý nghĩa cụ thể (**yêu cầu gì**) của từng điều khoản tham chiếu trong báo cáo được tóm gọn trong **Phụ lục C** (bảng tra). Các bảng và mục trong phần thân chỉ ghi mã điều khoản; tra ý nghĩa ở Phụ lục C.
+Ý nghĩa cụ thể (**yêu cầu gì**) của mỗi điều khoản tham chiếu được tóm gọn trong **Phụ lục C** (bảng tra). Phần thân chỉ ghi mã điều khoản trong các bảng và các mục, còn ý nghĩa thì tra ở Phụ lục C.
 
 # 4. Quy trình DevSecOps và các cổng kiểm soát
 
-Toàn bộ việc phát hiện và chống tái diễn bốn lỗi được viết thành mã và chạy tự động như một chuỗi kiểm soát (pipeline cục bộ), đúng tinh thần DevSecOps. Hình dưới ánh xạ từng lỗi và cổng kiểm soát vào các pha của vòng đời DevSecOps (xanh dương = Security as Code cho F01/F02; xanh lá = Policy as Code cho F03/F04):
+Việc phát hiện và chống tái diễn cả bốn lỗi đều được viết thành mã và chạy tự động dưới dạng một chuỗi kiểm soát (pipeline cục bộ) theo mô hình DevSecOps. Hình dưới ánh xạ từng lỗi và cổng kiểm soát vào các pha trong vòng đời DevSecOps (xanh dương là Security as Code cho F01/F02, xanh lá là Policy as Code cho F03/F04):
 
 !fig[devsecops-pipeline.png](Quy trình DevSecOps: ánh xạ bốn lỗi F01–F04 và các cổng kiểm soát theo từng pha; Security as Code cho F01/F02, Policy as Code cho F03/F04){width=16}
 
 Hai nhóm kiểm soát trong hình:
 
 - **Security as Code:** quét secret (Gitleaks), SAST (Semgrep) cho F01/F02, và kiểm thử bảo mật `f01-f02.test.ts` (đỏ trước vá, xanh sau vá).
-- **Policy as Code (build-time):** luật Rego cho Dockerfile (F04) và cho `docker-compose` (F03) — chặn cấu hình mở cổng backend hay chạy root **trước khi triển khai**.
-- **Compliance as Code (runtime):** kiểm tra **container đang chạy** bằng `docker inspect` + luật Rego runtime (`report/policy/runtime.rego`, `checks/hardening.py`) — xác nhận non-root, drop capability, chỉ proxy mở cổng loopback. So sánh container đối chứng (trước vá) với bản triển khai (sau vá) chính là cặp ca *lỗi cố ý / đạt* của kiểm tra tuân thủ.
+- **Policy as Code (build-time):** luật Rego cho Dockerfile (F04) và cho `docker-compose` (F03), chặn ngay những cấu hình mở cổng backend hoặc chạy root **trước khi triển khai**.
+- **Compliance as Code (runtime):** kiểm tra **container đang chạy** bằng `docker inspect` cùng luật Rego runtime (`report/policy/runtime.rego`, `checks/hardening.py`), xác nhận non-root, drop capability và chỉ proxy mở cổng loopback. Việc đặt container đối chứng (trước vá) cạnh bản triển khai (sau vá) tạo thành đúng cặp ca *lỗi cố ý / đạt* của một bài kiểm tra tuân thủ.
 
-Nhóm kiểm chứng trên **hai môi trường chạy song song**: container đối chứng *trước vá* (image gốc, `127.0.0.1:3100`) và bản triển khai *sau vá* (reverse proxy + backend ở mạng internal, `127.0.0.1:3102`). Cả hai đang chạy:
+Việc kiểm chứng diễn ra trên **hai môi trường chạy song song**: container đối chứng *trước vá* (image gốc, `127.0.0.1:3100`) và bản triển khai *sau vá* (reverse proxy kèm backend ở mạng internal, `127.0.0.1:3102`). Cả hai đều đang hoạt động:
 
 !fig[env.png](Hai môi trường: đối chứng trước vá (3100) và triển khai sau vá qua proxy (3102); backend chạy ở mạng internal, không mở cổng host){width=16}
 
-Các kiểm soát này được viết thành mã, chạy lặp lại được — hiện chạy cục bộ, và có thể ghép thành một chuỗi cổng (gate) trong CI. Mỗi cổng trả PASS/WARN/FAIL; chỉ mức **FAIL (luật `deny`)** mới chặn phát hành, còn mức **WARN (luật `warn`)** chỉ cảnh báo, không chặn. Trong `compose.rego`, các luật `cap_drop`/`read_only` là mức WARN (khuyến cáo), còn các luật mở cổng backend, bind ngoài loopback, privileged, mount docker.sock, secret nội tuyến là mức FAIL (chặn).
+Toàn bộ kiểm soát này được viết thành mã nên chạy lặp lại được; hiện chúng chạy cục bộ nhưng hoàn toàn có thể ghép thành một chuỗi cổng (gate) trong CI. Mỗi cổng trả về PASS, WARN hoặc FAIL. Chỉ mức **FAIL (luật `deny`)** mới chặn phát hành, còn mức **WARN (luật `warn`)** dừng ở cảnh báo. Cụ thể trong `compose.rego`, các luật `cap_drop` và `read_only` xếp mức WARN (khuyến cáo), trong khi các luật về mở cổng backend, bind ngoài loopback, privileged, mount docker.sock và secret nội tuyến đều ở mức FAIL (chặn).
 
 Table: Các cổng kiểm soát
 | Cổng kiểm soát | Công cụ | Lỗi được kiểm soát | Chặn phát hành |
@@ -144,7 +144,7 @@ Table: Các cổng kiểm soát
 | Policy as Code — build | Conftest/OPA (Rego) | F03, F04 (Dockerfile, compose) | có — luật `deny`; luật `warn` chỉ cảnh báo |
 | Compliance as Code — runtime | Conftest + `docker inspect` | F03, F04 (container đang chạy) | cảnh báo |
 
-Báo cáo bám theo **bảy pha của tài liệu lab** (*Hands-On Lab Guide: Security as Code with OWASP Juice Shop & Docker*), có thay một số công cụ bằng công cụ tương đương:
+Báo cáo bám theo **bảy pha của tài liệu lab** (*Hands-On Lab Guide: Security as Code with OWASP Juice Shop & Docker*), chỉ thay một vài công cụ bằng lựa chọn tương đương:
 
 Table: Bảy pha DevSecOps của tài liệu lab và cách báo cáo phủ
 | Pha (tài liệu lab) | Hoạt động | Công cụ |
@@ -157,13 +157,13 @@ Table: Bảy pha DevSecOps của tài liệu lab và cách báo cáo phủ
 | 6. Compliance as Code | Soi container đang chạy (runtime) | Conftest + `docker inspect` *(thay InSpec)* |
 | 7. Kiểm chứng | Chạy lại toàn bộ cổng kiểm soát; quét secret | Conftest, Gitleaks |
 
-Hai cổng tự động chạy thật (ảnh chụp output thực tế):
+Hai cổng tự động dưới đây đã chạy thật, kèm ảnh chụp output thực tế:
 
 !fig[gitleaks.png](Gitleaks quét toàn bộ commit vá: 24 commit, không có secret/khóa bí mật nào lộ){width=16}
 
 !fig[conftest-verify.png](Conftest verify: toàn bộ 17 unit test của bộ luật Rego (Dockerfile + compose) đều đạt){width=16}
 
-Đoạn mã demo của mỗi thành viên không tách rời tài liệu môn học mà **áp dụng trực tiếp** kỹ thuật được dạy trong đó:
+Đoạn mã demo của mỗi thành viên không nằm ngoài tài liệu môn học mà **áp dụng trực tiếp** kỹ thuật được dạy ở đó:
 
 Table: Liên hệ đoạn mã demo với tài liệu môn học
 | Thành viên | Đoạn mã demo | Kỹ thuật & tài liệu môn học áp dụng |
@@ -173,19 +173,19 @@ Table: Liên hệ đoạn mã demo với tài liệu môn học
 | Đỗ Đức Quốc Anh (F03) | `demos/tv3_f03_metrics.py`, `nginx.conf` | OpSec giảm phơi nhiễm endpoint, reverse proxy & giới hạn tốc độ — slide OpSec/DevSecOps |
 | Hồ Anh Vũ (F04) | `demos/tv4_f04_policy.py`, `docker_security.rego` | Policy as Code với Conftest — hướng dẫn Policy as Code (Conftest) |
 
-Mỗi thành viên lấy một kỹ thuật trong tài liệu môn học và hiện thực hóa thành đoạn mã chạy được để phát hiện hoặc chặn lỗi của mình.
+Nói cách khác, mỗi thành viên chọn một kỹ thuật từ tài liệu môn học rồi hiện thực hóa nó thành đoạn mã chạy được để phát hiện hoặc chặn lỗi mình phụ trách.
 
 ## 4.1. Quét và phát hiện lỗi — kết quả thực tế
 
-Các cổng quét tự động chạy trên mã nguồn và cấu hình *chưa vá*, phát hiện điểm yếu trước khi sửa.
+Các cổng quét tự động được chạy trên mã nguồn và cấu hình *chưa vá* để lộ ra điểm yếu trước khi sửa.
 
-**SAST (Semgrep).** Quét toàn bộ `routes/` và `lib/` cho ra 37 điểm yếu trên 25 tệp (NoSQL injection, XSS, băm yếu, JWT secret cố định…). Báo cáo tập trung ba điểm thuộc phạm vi phân công: F01 (`login.ts` — SQL injection), F02 (`basket.ts` — truy vấn giỏ hàng không ràng buộc chủ sở hữu) và hạn chế băm mật khẩu bằng MD5 không salt tại `lib/insecurity.ts`.
+**SAST (Semgrep).** Quét toàn bộ `routes/` và `lib/` cho ra 37 điểm yếu trên 25 tệp (NoSQL injection, XSS, băm yếu, JWT secret cố định…). Trong số đó, báo cáo tập trung ba điểm thuộc phạm vi phân công: F01 ở `login.ts` (SQL injection), F02 ở `basket.ts` (truy vấn giỏ hàng không ràng buộc chủ sở hữu) và hạn chế băm mật khẩu bằng MD5 không salt tại `lib/insecurity.ts`.
 
 !fig[semgrep-overview.png](Semgrep quét toàn bộ mã nguồn: 37 điểm yếu trên 25 tệp; tô vàng ba điểm thuộc phạm vi báo cáo){width=16}
 
 !fig[semgrep-scan.png](Ba điểm yếu báo cáo xử lý: F01 SQL injection (login.ts), F02 truy vấn giỏ hàng (basket.ts) và MD5 không salt (insecurity.ts)){width=16}
 
-**Policy as Code (Conftest).** Quét `Dockerfile.vulnerable` phát hiện 6 vi phạm thuộc 4 nhóm luật; gate chặn phát hành (chi tiết F04 ở mục 5.4):
+**Policy as Code (Conftest).** Quét `Dockerfile.vulnerable` cho ra 6 vi phạm thuộc 4 nhóm luật, đủ để gate chặn phát hành (chi tiết F04 ở mục 5.4):
 
 !fig[conftest-fail.png](Conftest quét Dockerfile.vulnerable: 6 vi phạm thuộc 4 nhóm luật, gate chặn phát hành){width=16}
 
@@ -202,9 +202,9 @@ models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || '
   AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true })
 ```
 
-Với email `' OR 1=1--`, mệnh đề WHERE luôn đúng và phần kiểm tra mật khẩu bị biến thành chú thích, nên máy chủ cấp token của tài khoản đầu tiên (quản trị) mà không cần mật khẩu. Đây là CWE-89, OWASP A03:2021.
+Với email `' OR 1=1--`, mệnh đề WHERE luôn đúng còn phần kiểm tra mật khẩu bị đẩy thành chú thích, nên máy chủ cấp token của tài khoản đầu tiên (tài khoản quản trị) mà không cần mật khẩu. Đây chính là CWE-89, OWASP A03:2021.
 
-**Phát hiện.** Semgrep (luật `express-sequelize-injection`) chỉ đúng dòng lỗi; kiểm thử `test/api/security/f01-f02.test.ts` gửi payload kèm mật khẩu sai và yêu cầu nhận 401 — trên mã chưa sửa, test đỏ (@fig(f0102-red)). Demo `demos/tv1_f01_sqli.py` xác nhận token được cấp (@fig(tv1)).
+**Phát hiện.** Semgrep (luật `express-sequelize-injection`) chỉ đúng dòng lỗi. Kiểm thử `test/api/security/f01-f02.test.ts` gửi payload kèm mật khẩu sai và đòi nhận về 401; trên mã chưa sửa, test báo đỏ (@fig(f0102-red)). Demo `demos/tv1_f01_sqli.py` xác nhận token vẫn được cấp (@fig(tv1)).
 
 !fig[semgrep.png](Semgrep phát hiện truy vấn nhiễm dữ liệu người dùng tại login.ts và basket.ts){width=16}
 
@@ -221,9 +221,9 @@ models.sequelize.query('SELECT * FROM Users WHERE email = $email AND password = 
   { bind: { email, password: security.hash(password) }, model: UserModel, plain: true })
 ```
 
-Câu lệnh được biên dịch trước, giá trị gửi riêng nên ký tự SQL trong email chỉ còn là dữ liệu. Sau khi sửa, kiểm thử bảo mật xanh toàn bộ (@fig(f0102-green)) và demo cho thấy mọi payload đều bị từ chối 401 trong khi đăng nhập hợp lệ vẫn hoạt động (@fig(tv1)).
+Câu lệnh được biên dịch trước và giá trị truyền riêng, nên mọi ký tự SQL trong email giờ chỉ còn được hiểu là dữ liệu. Sau khi sửa, kiểm thử bảo mật xanh toàn bộ (@fig(f0102-green)); demo cũng cho thấy mọi payload đều bị từ chối 401 trong khi đăng nhập hợp lệ vẫn hoạt động bình thường (@fig(tv1)).
 
-Giới hạn còn lại: bản vá chỉ xử lý injection; cùng dòng code vẫn gọi `security.hash` của Juice Shop — hàm này băm mật khẩu bằng **MD5 không salt** (`lib/insecurity.ts`, CWE-327 / OWASP A02:2021). Đây là lỗ hổng lưu trữ mật khẩu nằm ngoài phạm vi F01 (vốn chỉ chặn vượt xác thực); khi triển khai thật cần thay bằng bcrypt hoặc argon2 có salt.
+Bản vá vẫn còn một giới hạn: nó chỉ xử lý injection, trong khi cùng dòng code đó vẫn gọi `security.hash` của Juice Shop, vốn băm mật khẩu bằng **MD5 không salt** (`lib/insecurity.ts`, CWE-327 / OWASP A02:2021). Đây là lỗ hổng lưu trữ mật khẩu nằm ngoài phạm vi F01, vì F01 chỉ chặn việc vượt xác thực; khi triển khai thật, cần thay nó bằng bcrypt hoặc argon2 có salt.
 
 !fig[tv1.png](Demo F01: cùng payload, trước khi sửa được cấp token, sau khi sửa bị từ chối){width=15}
 
@@ -239,13 +239,13 @@ Route `routes/basket.ts` tìm giỏ chỉ theo mã trên URL:
 const basket = await BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, as: 'Products' }] })
 ```
 
-Middleware chỉ kiểm tra token hợp lệ, không kiểm tra quyền sở hữu, nên đổi `/rest/basket/8` thành `/rest/basket/9` là đọc được giỏ người khác (CWE-639, OWASP A01:2021).
+Middleware chỉ xác nhận token hợp lệ chứ không kiểm tra quyền sở hữu, nên chỉ cần đổi `/rest/basket/8` thành `/rest/basket/9` là đọc được giỏ của người khác (CWE-639, OWASP A01:2021).
 
-**Phát hiện.** Kiểm thử hai tài khoản A, B: dùng token của A đọc giỏ của B. Trên mã chưa sửa trả về đúng giỏ của B (@fig(tv2)); các ca tương ứng trong `f01-f02.test.ts` đỏ.
+**Phát hiện.** Kịch bản kiểm thử dựng hai tài khoản A và B, rồi dùng token của A để đọc giỏ của B. Trên mã chưa sửa, máy chủ trả về đúng giỏ của B (@fig(tv2)) và các ca tương ứng trong `f01-f02.test.ts` báo đỏ.
 
 ### Sau khi sửa
 
-Ràng buộc chủ sở hữu ngay trong truy vấn, danh tính lấy từ phiên do máy chủ cấp:
+Giải pháp là ràng buộc chủ sở hữu ngay trong truy vấn, với danh tính lấy từ phiên do máy chủ cấp:
 
 ```typescript
 const user = security.authenticatedUsers.from(req)
@@ -256,7 +256,7 @@ const basket = await BasketModel.findOne({ where: { id, UserId: user.data.id }, 
 if (!basket) return res.status(404).end()
 ```
 
-Sau khi sửa, A đọc giỏ của B nhận 404, giỏ của chính mình vẫn 200 (@fig(tv2)).
+Sau khi sửa, A đọc giỏ của B chỉ nhận 404, còn giỏ của chính A vẫn trả 200 (@fig(tv2)).
 
 !fig[tv2.png](Demo F02: trước khi sửa A đọc được giỏ của B, sau khi sửa nhận 404){width=14}
 
@@ -268,13 +268,13 @@ Sau khi sửa, A đọc giỏ của B nhận 404, giỏ của chính mình vẫn
 
 ### Trước khi sửa
 
-Juice Shop mở `/metrics` (Prometheus) không cần đăng nhập, lộ số người dùng, số đơn hàng, tổng số dư ví. Khi container publish thẳng cổng ứng dụng, ai cũng gọi được từ host. Đây là lỗi **triển khai/vận hành**.
+Juice Shop mở sẵn `/metrics` (Prometheus) mà không yêu cầu đăng nhập, để lộ số người dùng, số đơn hàng và tổng số dư ví. Khi container publish thẳng cổng ứng dụng ra ngoài, bất kỳ ai cũng gọi được endpoint này từ host. Đây là một lỗi thuộc khâu **triển khai/vận hành**.
 
-**Phát hiện.** Demo `demos/tv3_f03_metrics.py` gọi `/metrics` từ host: trước khi sửa trả 200 với hàng trăm dòng số liệu (@fig(tv3)).
+**Phát hiện.** Demo `demos/tv3_f03_metrics.py` gọi `/metrics` từ host; trước khi sửa, endpoint trả về 200 kèm hàng trăm dòng số liệu (@fig(tv3)).
 
 ### Sau khi sửa
 
-Bỏ cổng host của backend, chỉ cho reverse proxy mở cổng loopback; proxy chặn `/metrics` và giới hạn tốc độ đăng nhập:
+Hướng xử lý là bỏ cổng host của backend và chỉ để reverse proxy mở cổng loopback; tại proxy, `/metrics` bị chặn và tốc độ đăng nhập bị giới hạn:
 
 ```nginx
 location = /metrics { return 404; }
@@ -288,7 +288,7 @@ networks:
   backend: { internal: true }
 ```
 
-Sau khi sửa: `/metrics` qua proxy trả 404 và cổng backend cũ bị từ chối kết nối **từ host** — tức chặn ở lối vào từ bên ngoài, không phải đóng tuyệt đối: trong mạng internal, hệ thống giám sát vẫn đọc được metrics đúng mục đích (@fig(tv3)).
+Sau khi sửa, `/metrics` đi qua proxy trả về 404 và cổng backend cũ bị từ chối kết nối **từ host**. Đây là chặn ở lối vào từ bên ngoài chứ không phải khóa tuyệt đối: trong mạng internal, hệ thống giám sát vẫn đọc được metrics đúng mục đích (@fig(tv3)).
 
 !fig[tv3.png](Demo F03: /metrics lộ khi truy cập trực tiếp, bị chặn sau khi sửa){width=15}
 
@@ -298,7 +298,7 @@ Sau khi sửa: `/metrics` qua proxy trả 404 và cổng backend cũ bị từ c
 
 ### Trước khi sửa
 
-Image đóng gói Juice Shop có thể vi phạm chính sách an toàn tối thiểu mà vẫn bị bỏ sót nếu kiểm tra sai chỗ. Một `Dockerfile.vulnerable` minh họa bốn vi phạm:
+Một image đóng gói Juice Shop có thể vi phạm chính sách an toàn tối thiểu mà vẫn lọt qua nếu kiểm tra đặt sai chỗ. `Dockerfile.vulnerable` dưới đây minh họa bốn vi phạm như vậy:
 
 ```dockerfile
 FROM node:22-alpine
@@ -308,20 +308,20 @@ EXPOSE 3000 22 3306           # mở cổng SSH 22, DB 3306
 CMD ["npm", "start"]           # không USER (chạy root), không nhãn nguồn gốc
 ```
 
-Những cách kiểm tra sơ sài dễ bị qua mặt: kiểm tra "có lệnh `USER`" bỏ sót Dockerfile nhiều stage (lệnh `USER` ở stage builder không áp dụng cho image chạy thật); kiểm tra "`EXPOSE` không chứa cổng cấm" không có giá trị vì `EXPOSE` chỉ mang tính tài liệu; nhãn `mfa="true"` có thể tự khai mà không phản ánh cấu hình thực tế.
+Những cách kiểm tra sơ sài rất dễ bị qua mặt. Kiểm tra kiểu "có lệnh `USER`" sẽ bỏ sót Dockerfile nhiều stage, bởi lệnh `USER` ở stage builder không áp dụng cho image chạy thật. Kiểm tra "`EXPOSE` không chứa cổng cấm" thì gần như vô nghĩa vì `EXPOSE` chỉ mang tính tài liệu. Còn nhãn `mfa="true"` thì ai cũng tự khai được mà chẳng phản ánh cấu hình thực tế.
 
-**Rủi ro nếu để nguyên, không vá.** Mỗi vi phạm dẫn tới một rủi ro an toàn cụ thể:
+**Rủi ro nếu để nguyên, không vá.** Mỗi vi phạm kéo theo một rủi ro an toàn cụ thể:
 
-- **Chạy bằng root (LEAST-PRIVILEGE):** khi ứng dụng bị chiếm quyền qua một lỗ hổng khác — ví dụ chính F01 — tiến trình độc hại có ngay quyền root *bên trong* container, dễ ghi đè file hệ thống, cài công cụ, và nếu kết hợp một lỗ hổng nhân hệ điều hành thì **thoát container, leo thang đặc quyền** lên máy chủ. Chạy non-root (UID 65532) giới hạn thiệt hại ngay cả khi ứng dụng bị khai thác.
-- **Mở cổng quản trị/CSDL (ATTACK-SURFACE):** khai báo EXPOSE 22 (SSH), 3306 (MySQL) báo hiệu các dịch vụ này có thể được bật, **mở rộng bề mặt tấn công** và tạo đường dò quét, đăng nhập vét cạn vào dịch vụ quản trị và cơ sở dữ liệu — nơi chứa dữ liệu người dùng.
-- **Rủi ro chuỗi cung ứng (SUPPLY-CHAIN):** thiếu nhãn nguồn gốc `org.opencontainers.image.source`/`revision` thì khi có sự cố **không truy vết được image bắt nguồn từ commit nào** để điều tra, thu hồi (đây là *provenance khai báo* theo SLSA L1 — phục vụ truy vết; muốn chắc chắn hơn thì ký *attestation*). Ngoài ra, dùng `:latest` hay chưa ghim digest khiến image có thể **bị đổi âm thầm** giữa các lần build, bản chạy thật khác bản đã kiểm thử; lệnh `ADD` có thể kéo nội dung từ xa không kiểm soát. Ghim digest, gắn nhãn nguồn gốc và dùng COPY giúp image **truy vết được, tái lập được và bất biến**.
-- **Bí mật nhúng trong image (SECRET-IN-IMAGE):** đặt mật khẩu/token trong `ENV`/`ARG` làm bí mật **bị bake vào layer của ảnh** — bất kỳ ai `docker pull` rồi chạy `docker history` đều đọc được, kể cả khi dòng đó đã bị xóa ở layer sau. Thay vào đó dùng *build secret* hoặc nạp biến môi trường lúc chạy. (Đây là **luật riêng nhóm bổ sung**, không có trong bản mẫu của lab.)
+- **Chạy bằng root (LEAST-PRIVILEGE):** nếu ứng dụng bị chiếm quyền qua một lỗ hổng khác, chẳng hạn chính F01, tiến trình độc hại sẽ có ngay quyền root *bên trong* container. Khi đó kẻ tấn công dễ ghi đè file hệ thống, cài thêm công cụ, và nếu ghép thêm một lỗ hổng nhân hệ điều hành thì có thể **thoát container và leo thang đặc quyền** lên máy chủ. Chạy non-root (UID 65532) giúp khoanh vùng thiệt hại ngay cả khi ứng dụng bị khai thác.
+- **Mở cổng quản trị/CSDL (ATTACK-SURFACE):** khai báo EXPOSE 22 (SSH) và 3306 (MySQL) cho thấy các dịch vụ này có thể được bật, qua đó **mở rộng bề mặt tấn công** và tạo đường cho kẻ xấu dò quét, đăng nhập vét cạn vào dịch vụ quản trị và cơ sở dữ liệu, chính là nơi chứa dữ liệu người dùng.
+- **Rủi ro chuỗi cung ứng (SUPPLY-CHAIN):** nếu thiếu nhãn nguồn gốc `org.opencontainers.image.source`/`revision`, khi có sự cố sẽ **không truy vết được image bắt nguồn từ commit nào** để điều tra hay thu hồi (đây là *provenance khai báo* theo SLSA L1, phục vụ truy vết; muốn chắc chắn hơn thì phải ký *attestation*). Thêm vào đó, dùng `:latest` hoặc chưa ghim digest khiến image có thể **bị đổi âm thầm** giữa các lần build, làm cho bản chạy thật khác với bản đã kiểm thử, còn lệnh `ADD` thì có thể kéo nội dung từ xa ngoài kiểm soát. Ghim digest, gắn nhãn nguồn gốc và dùng COPY sẽ giúp image **truy vết được, tái lập được và bất biến**.
+- **Bí mật nhúng trong image (SECRET-IN-IMAGE):** đặt mật khẩu hay token trong `ENV`/`ARG` khiến bí mật **bị bake vào layer của ảnh**, và bất kỳ ai `docker pull` rồi chạy `docker history` đều đọc được, kể cả khi dòng đó đã bị xóa ở layer sau. Cách đúng là dùng *build secret* hoặc nạp biến môi trường lúc chạy. (Đây là **luật do nhóm bổ sung**, không có trong bản mẫu của lab.)
 
 ### Sau khi sửa
 
-Việc xử lý gồm **hai phần tách bạch**: (1) **sửa chính file triển khai** cho đúng cấu hình an toàn, và (2) **viết chính sách kiểm tra tự động** để chống tái diễn. Cần nói rõ: **Conftest không tự sửa file** — nó chỉ là *cổng kiểm tra*, đọc Dockerfile và trả PASS/FAIL kèm lý do; nếu còn vi phạm thì chặn phát hành. Người viết Dockerfile mới là người sửa.
+Việc xử lý gồm **hai phần tách bạch**: (1) **sửa chính file triển khai** cho đúng cấu hình an toàn, và (2) **viết chính sách kiểm tra tự động** để chống tái diễn. Cũng cần nói rõ rằng **Conftest không tự sửa file**: nó chỉ đóng vai trò *cổng kiểm tra*, đọc Dockerfile rồi trả PASS/FAIL kèm lý do, và chặn phát hành nếu còn vi phạm. Người sửa thực sự vẫn là người viết Dockerfile.
 
-**(1) Sửa file Dockerfile triển khai.** So với bản lỗi, bản vá (`report/fixtures/Dockerfile.remediated`) sửa các điểm tương ứng từng vi phạm:
+**(1) Sửa file Dockerfile triển khai.** So với bản lỗi, bản vá (`report/fixtures/Dockerfile.remediated`) khắc phục đúng từng vi phạm tương ứng:
 
 ```dockerfile
 FROM node:22-alpine
@@ -335,11 +335,11 @@ EXPOSE 3000               # BỎ cổng 22 và 3306        -> đạt ATTACK-SURF
 CMD ["npm", "start"]
 ```
 
-Tức: thêm lệnh `USER` chạy non-root, bỏ hai cổng quản trị/CSDL khỏi `EXPOSE`, thêm nhãn nguồn gốc OCI, và **không đặt bí mật trong `ENV`/`ARG`** (dùng *build secret* hoặc nạp biến môi trường lúc chạy). Khi phát hành thật nên ghim base image theo digest (hiện luật Rego mới cảnh báo, chưa chặn). Image triển khai thực tế của nhóm (`deploy/Dockerfile.hotfix`) và cả Dockerfile gốc của Juice Shop đều đã thỏa các điều này.
+Cụ thể, bản vá thêm lệnh `USER` để chạy non-root, loại hai cổng quản trị/CSDL khỏi `EXPOSE`, bổ sung nhãn nguồn gốc OCI và **không đặt bí mật trong `ENV`/`ARG`** (dùng *build secret* hoặc nạp biến môi trường lúc chạy). Khi phát hành thật, nên ghim base image theo digest, dù hiện luật Rego mới chỉ cảnh báo chứ chưa chặn. Image triển khai thực tế của nhóm (`deploy/Dockerfile.hotfix`) lẫn Dockerfile gốc của Juice Shop đều đã thỏa những yêu cầu này.
 
-**(2) Viết chính sách thành mã (Policy as Code)** bằng Rego/Conftest (`juice-shop/policy/docker_security.rego`), đặt mỗi luật đúng điểm thực thi để không bị qua mặt. Mã nguồn đầy đủ của bộ luật ở **Phụ lục A**.
+**(2) Viết chính sách thành mã (Policy as Code)** bằng Rego/Conftest (`juice-shop/policy/docker_security.rego`), với mỗi luật được đặt đúng điểm thực thi để không bị qua mặt. Mã nguồn đầy đủ của bộ luật nằm ở **Phụ lục A**.
 
-Cần lưu ý Conftest là **bộ máy chính sách tổng quát, không có luật sẵn**: bản thân nó không tự quét ra lỗi nào. Chính **bộ luật Rego được viết riêng** (kèm mười một unit test chứng minh luật bắt đúng và không bị qua mặt) mới là *cách phát hiện* của F04 — đúng tinh thần Policy as Code: tổ chức tự mã hóa chính sách của mình thành mã, kiểm chứng và chạy lại được trong CI.
+Cần lưu ý rằng Conftest là **bộ máy chính sách tổng quát và không có luật sẵn**, nên tự nó không quét ra lỗi nào. Chính **bộ luật Rego được viết riêng** (kèm mười một unit test chứng minh luật bắt đúng và không bị qua mặt) mới là *cách phát hiện* của F04. Đây cũng là cách Policy as Code vận hành: tổ chức tự mã hóa chính sách của mình, kiểm chứng và chạy lại được trong CI.
 
 Các luật và tiêu chuẩn đối chiếu:
 
@@ -351,7 +351,7 @@ Table: Luật kiểm tra cấu hình container — luật yêu cầu gì và d�
 | SUPPLY-CHAIN | **Phải** có nhãn nguồn gốc OCI; **không** dùng `:latest`/`ADD`; nên ghim digest | OCI image-spec; SLSA; CIS Docker 4.5/4.9 |
 | SECRET-IN-IMAGE *(bổ sung)* | **Không** đặt secret/credential trong `ENV`/`ARG` | CIS Docker 4.10; PCI-DSS 8.2.1; GDPR Đ.32; NĐ 13/2023 Đ.26 |
 
-`conftest verify` cho toàn bộ chính sách đạt 17/17 ca kiểm thử (11 ca cho chính sách Dockerfile của F04, 6 ca cho chính sách compose của F03). Kết quả: `Dockerfile.vulnerable` bị chặn 4 nhóm luật (LEAST-PRIVILEGE, ATTACK-SURFACE, SUPPLY-CHAIN, SECRET-IN-IMAGE), bản vá đạt, và Dockerfile gốc distroless của Juice Shop **đạt toàn bộ chính sách an toàn** (@fig(tv4)).
+Lệnh `conftest verify` chạy toàn bộ chính sách đạt 17/17 ca kiểm thử (11 ca cho chính sách Dockerfile của F04 và 6 ca cho chính sách compose của F03). Kết quả cho thấy `Dockerfile.vulnerable` bị chặn bởi 4 nhóm luật (LEAST-PRIVILEGE, ATTACK-SURFACE, SUPPLY-CHAIN, SECRET-IN-IMAGE), bản vá thì đạt, và Dockerfile gốc distroless của Juice Shop cũng **đạt toàn bộ chính sách an toàn** (@fig(tv4)).
 
 !fig[tv4.png](Demo F04: Dockerfile.vulnerable bị chặn bốn nhóm luật, bản vá và Dockerfile gốc đạt chính sách){width=15}
 
@@ -359,7 +359,7 @@ Table: Luật kiểm tra cấu hình container — luật yêu cầu gì và d�
 
 # 6. Kết luận
 
-Bốn lỗi an toàn (hai lỗi mã nguồn F01/F02, hai lỗi triển khai F03/F04) đều được phát hiện bằng công cụ hoặc kiểm thử, xử lý và kiểm chứng theo mạch trước→sau, kèm đoạn mã demo của từng thành viên. Việc phát hiện và chống tái diễn được thể hiện dưới dạng Policy as Code và Security as Code trong một chuỗi kiểm soát DevSecOps. Các biện pháp này không có sẵn trong Juice Shop gốc (ứng dụng cố ý để lỗ hổng, không có truy vấn tham số, không reverse proxy/giới hạn tốc độ, không chính sách cấu hình container, không cổng kiểm soát trong CI) — đó là phần giá trị mà báo cáo bổ sung.
+Cả bốn lỗi an toàn (hai lỗi mã nguồn F01/F02 và hai lỗi triển khai F03/F04) đều được phát hiện bằng công cụ hoặc kiểm thử, rồi xử lý và kiểm chứng theo mạch trước→sau, kèm đoạn mã demo của từng thành viên. Toàn bộ quá trình phát hiện và chống tái diễn được thể hiện dưới dạng Policy as Code và Security as Code trong một chuỗi kiểm soát DevSecOps. Những biện pháp này vốn không có sẵn trong Juice Shop gốc, nơi lỗ hổng được để lại một cách cố ý, không có truy vấn tham số, không reverse proxy hay giới hạn tốc độ, không chính sách cấu hình container và cũng không có cổng kiểm soát nào trong CI. Đó chính là phần giá trị mà báo cáo bổ sung.
 
 # 7. Tài liệu tham khảo
 
