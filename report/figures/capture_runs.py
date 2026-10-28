@@ -6,8 +6,10 @@ Sinh:  env.png, gitleaks.png, conftest-verify.png
 """
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -26,6 +28,8 @@ OKC = (63, 185, 80)
 RED = (248, 81, 73)
 YEL = (210, 153, 34)
 GRN = (46, 204, 113)
+HLC = (240, 180, 41)   # vàng hổ phách — dòng highlight (lỗi nhóm xử lý)
+HLBG = (58, 50, 24)    # nền mờ cho dòng highlight
 
 
 def font(sz, bold=False):
@@ -68,6 +72,9 @@ def render(out, title, blocks):
             d.text((pad + d.textlength(pr, font=FB), y), ln, font=FB, fill=CMD)
         elif kind == 'ok':
             d.text((pad, y), ln, font=FB, fill=OKC)
+        elif kind == 'hl':
+            d.rectangle([0, y - 2, W, y + lh - 2], fill=HLBG)
+            d.text((pad, y), ln, font=FB, fill=HLC)
         else:
             d.text((pad, y), ln, font=F, fill=FG)
         y += lh
@@ -109,6 +116,62 @@ def main():
         ('cmd', '    openpolicyagent/conftest:v0.71.1 verify -p policy'),
         ('out', tail),
         ('ok', '=> Toàn bộ 17 unit test của bộ luật Rego đều đạt.'),
+    ])
+
+    # 4) Semgrep (SAST) quét TOÀN BỘ mã chưa vá -> nhiều findings, highlight F01/F02
+    print('đang chạy Semgrep trên toàn bộ routes/ + lib/ chưa vá (~30s)...')
+    import io
+    import tarfile
+    vroot = pathlib.Path(tempfile.mkdtemp(prefix='vuln-'))
+    arch = subprocess.run(['git', '-C', str(ROOT), 'archive', '21219d66d', 'routes', 'lib'], capture_output=True)
+    with tarfile.open(fileobj=io.BytesIO(arch.stdout)) as tf:
+        tf.extractall(vroot)
+    sg = sh('docker', 'run', '--rm', '-e', 'SEMGREP_SEND_METRICS=off',
+            '-v', f'{vroot.as_posix()}:/src:ro', '-v', f'{(ROOT / "report" / "semgrep-rules").as_posix()}:/rules:ro',
+            'semgrep/semgrep:1.180.0', 'semgrep', 'scan', '--metrics=off',
+            '--config', '/rules/owasp-top-ten.yml', '--config', '/rules/nodejsscan.yml', '/src')
+    shutil.rmtree(vroot, ignore_errors=True)
+    count = next((re.search(r'(\d+) Code Findings', l).group(1) for l in sg.split('\n') if 'Code Findings' in l), '?')
+    files, cur = {}, None
+    for l in sg.split('\n'):
+        m = re.search(r'/src/(\S+\.ts)', l)
+        if m:
+            cur = m.group(1)
+        elif 'rules.' in l and cur:
+            files.setdefault(cur, []).append(l.rsplit('.', 1)[-1].strip())
+    HI = {'routes/login.ts': 'F01 — SQL injection', 'routes/basket.ts': 'F02 — IDOR / NoSQLi',
+          'lib/insecurity.ts': 'liên quan F01 — MD5 không salt'}
+    ov = [('cmd', 'semgrep scan --config owasp-top-ten.yml --config nodejsscan.yml routes/ lib/   # toàn bộ mã chưa vá'),
+          ('out', f'{count} Code Findings trên {len(files)} tệp — rút gọn:')]
+    for f in sorted(files, key=lambda x: (x not in HI, x)):
+        rz = ', '.join(sorted(set(files[f])))[:70]
+        if f in HI:
+            ov.append(('hl', f'  {f:<24} {rz}   <= {HI[f]}'))
+        else:
+            ov.append(('out', f'  {f:<24} {rz}'))
+    ov.append(('ok', f'=> Semgrep ra {count} findings; báo cáo chọn F01 (login.ts) và F02 (basket.ts) để phân tích & vá.'))
+    render(SHOTS / 'semgrep-overview.png', 'Windows PowerShell — Semgrep (SAST) quét toàn bộ mã nguồn', ov)
+    render(SHOTS / 'semgrep-scan.png', 'Windows PowerShell — Semgrep: ba lỗi nhóm phân tích', [
+        ('cmd', 'semgrep scan --config owasp-top-ten.yml --config nodejsscan.yml routes/login.ts routes/basket.ts lib/insecurity.ts'),
+        ('hl', '  routes/login.ts     express-sequelize-injection -> SQL injection (F01)'),
+        ('hl', '  routes/basket.ts    node_nosqli_injection -> truy vấn không ràng buộc chủ sở hữu (F02)'),
+        ('hl', '  lib/insecurity.ts   node_md5 -> mật khẩu băm MD5 không salt (CWE-327, giới hạn còn lại của F01)'),
+        ('ok', '=> Ba điểm trên là phạm vi báo cáo xử lý; các finding còn lại ngoài phạm vi.'),
+    ])
+
+    # 5) Conftest (Policy as Code) quét Dockerfile.vulnerable -> chặn
+    cfail = sh(*CF, 'test', 'Dockerfile.vulnerable', '--parser', 'dockerfile', '-p', 'policy', '--namespace', 'dockerfile', '--no-color')
+    groups = sorted({l.split(':')[0].split(' - ')[-1] for l in cfail.split('\n') if l.startswith('FAIL')})
+    summ = next((l for l in cfail.split('\n') if 'failures' in l), '')
+    render(SHOTS / 'conftest-fail.png', 'Windows PowerShell — Conftest quét Dockerfile.vulnerable (Policy as Code)', [
+        ('cmd', 'conftest test Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile'),
+        ('out', 'FAIL - LEAST-PRIVILEGE: final stage has no USER instruction; container runs as root'),
+        ('out', "FAIL - ATTACK-SURFACE: EXPOSE '22'/'3306' covers administrative/database port"),
+        ('out', "FAIL - SECRET-IN-IMAGE: ENV 'API_TOKEN' hardcodes a credential into the image"),
+        ('out', "FAIL - SUPPLY-CHAIN: missing provenance label org.opencontainers.image.source/revision"),
+        ('out', 'WARN - SUPPLY-CHAIN: base image node:22-alpine is not pinned by digest'),
+        ('out', summ),
+        ('ok', f'=> Gate chặn: {", ".join(groups)}.'),
     ])
 
 

@@ -175,9 +175,21 @@ Table: Liên hệ đoạn mã demo với tài liệu môn học
 
 Mỗi thành viên lấy một kỹ thuật trong tài liệu môn học và hiện thực hóa thành đoạn mã chạy được để phát hiện hoặc chặn lỗi của mình.
 
-## 4.1. Đoạn mã dò lỗi cốt lõi của mỗi demo
+## 4.1. Quét và phát hiện lỗi — kết quả thực tế
 
-Mỗi script chạy bằng **một lệnh** (`python report/demos/<tên>.py`); phần dò lỗi cốt lõi trích dưới đây.
+Các cổng quét tự động chạy trên mã nguồn và cấu hình *chưa vá*, phát hiện điểm yếu trước khi sửa.
+
+**SAST (Semgrep).** Quét toàn bộ `routes/` và `lib/` cho ra 37 điểm yếu trên 25 tệp (NoSQL injection, XSS, băm yếu, JWT secret cố định…). Báo cáo tập trung ba điểm thuộc phạm vi phân công: F01 (`login.ts` — SQL injection), F02 (`basket.ts` — truy vấn giỏ hàng không ràng buộc chủ sở hữu) và hạn chế băm mật khẩu bằng MD5 không salt tại `lib/insecurity.ts`.
+
+!fig[semgrep-overview.png](Semgrep quét toàn bộ mã nguồn: 37 điểm yếu trên 25 tệp; tô vàng ba điểm thuộc phạm vi báo cáo){width=16}
+
+!fig[semgrep-scan.png](Ba điểm yếu báo cáo xử lý: F01 SQL injection (login.ts), F02 truy vấn giỏ hàng (basket.ts) và MD5 không salt (insecurity.ts)){width=16}
+
+**Policy as Code (Conftest).** Quét `Dockerfile.vulnerable` phát hiện 6 vi phạm thuộc 4 nhóm luật; gate chặn phát hành (chi tiết F04 ở mục 5.4):
+
+!fig[conftest-fail.png](Conftest quét Dockerfile.vulnerable: 6 vi phạm thuộc 4 nhóm luật, gate chặn phát hành){width=16}
+
+**Đoạn mã dò lỗi trong script demo.** Mỗi script chạy bằng một lệnh (`python report/demos/<tên>.py`); phần dò lỗi cốt lõi như sau.
 
 **F01 — `tv1_f01_sqli.py`:** gửi payload SQL kèm mật khẩu *sai*; còn lỗ hổng nếu vẫn được cấp token.
 
@@ -241,11 +253,11 @@ models.sequelize.query('SELECT * FROM Users WHERE email = $email AND password = 
 
 Câu lệnh được biên dịch trước, giá trị gửi riêng nên ký tự SQL trong email chỉ còn là dữ liệu. Sau khi sửa, kiểm thử bảo mật xanh toàn bộ (@fig(f0102-green)) và demo cho thấy mọi payload đều bị từ chối 401 trong khi đăng nhập hợp lệ vẫn hoạt động (@fig(tv1)).
 
-Giới hạn còn lại: bản vá chỉ xử lý injection; cùng dòng code vẫn gọi `security.hash` của Juice Shop — hàm này băm mật khẩu bằng **MD5 không muối** (`lib/insecurity.ts`, CWE-327 / OWASP A02:2021). Đây là lỗ hổng lưu trữ mật khẩu nằm ngoài phạm vi F01 (vốn chỉ chặn vượt xác thực); khi triển khai thật cần thay bằng bcrypt/argon2 có muối.
+Giới hạn còn lại: bản vá chỉ xử lý injection; cùng dòng code vẫn gọi `security.hash` của Juice Shop — hàm này băm mật khẩu bằng **MD5 không salt** (`lib/insecurity.ts`, CWE-327 / OWASP A02:2021). Đây là lỗ hổng lưu trữ mật khẩu nằm ngoài phạm vi F01 (vốn chỉ chặn vượt xác thực); khi triển khai thật cần thay bằng bcrypt hoặc argon2 có salt.
 
 !fig[tv1.png](Demo F01: cùng payload, trước khi sửa được cấp token, sau khi sửa bị từ chối){width=15}
 
-**Chính sách vi phạm:** GDPR Điều 32(1)(b) (bảo mật khi xử lý dữ liệu); Nghị định 13/2023 Điều 26 (biện pháp kỹ thuật bảo vệ dữ liệu cá nhân); Luật ATTTM 2015 Điều 19. **Pha & Security as Code:** phát hiện ở pha Code (SAST), chặn tái diễn ở pha Test bằng kiểm thử bảo mật trong pipeline.
+**Chính sách vi phạm:** GDPR Điều 32(1)(b) (bảo mật khi xử lý dữ liệu); Nghị định 13/2023 Điều 26 (biện pháp kỹ thuật bảo vệ dữ liệu cá nhân); Luật ATTTM 2015 Điều 19. **Pha DevSecOps:** Code → Test. **Kiểm soát (Security as Code):** phát hiện bằng SAST ở pha Code, chặn tái diễn bằng kiểm thử bảo mật tự động ở pha Test.
 
 ## 5.2. F02 — IDOR khi đọc giỏ hàng
 
@@ -280,7 +292,7 @@ Sau khi sửa, A đọc giỏ của B nhận 404, giỏ của chính mình vẫn
 
 !fig[f0102-green.png](Kiểm thử bảo mật F01/F02 sau khi sửa: toàn bộ ca đạt){width=15}
 
-**Chính sách vi phạm:** GDPR Điều 5(1)(f), 25(2); Nghị định 13/2023 Điều 3 (nguyên tắc an toàn) và Điều 26; Luật ATTTM 2015 Điều 17 (không để lộ dữ liệu cá nhân cho bên thứ ba). **Pha & Security as Code:** phát hiện ở Test (kiểm thử phân quyền), giữ trong pipeline để chống tái diễn.
+**Chính sách vi phạm:** GDPR Điều 5(1)(f), 25(2); Nghị định 13/2023 Điều 3 (nguyên tắc an toàn) và Điều 26; Luật ATTTM 2015 Điều 17 (không để lộ dữ liệu cá nhân cho bên thứ ba). **Pha DevSecOps:** Design → Test. **Kiểm soát (Security as Code):** kiểm thử phân quyền tự động trong pipeline, chống tái diễn.
 
 ## 5.3. F03 — Lộ endpoint /metrics không xác thực
 
@@ -310,7 +322,7 @@ Sau khi sửa: `/metrics` qua proxy trả 404 và cổng backend cũ bị từ c
 
 !fig[tv3.png](Demo F03: /metrics lộ khi truy cập trực tiếp, bị chặn sau khi sửa){width=15}
 
-**Chính sách vi phạm:** GDPR Điều 25(2), 32(1)(b); Nghị định 13/2023 Điều 26; Luật ATTTM 2015 Điều 17, 19. **Pha & Policy as Code:** lỗi ở Deploy/Operate; luật `compose.rego` chặn mọi cấu hình cho backend mở cổng (mục 4).
+**Chính sách vi phạm:** GDPR Điều 25(2), 32(1)(b); Nghị định 13/2023 Điều 26; Luật ATTTM 2015 Điều 17, 19. **Pha DevSecOps:** Deploy → Operate. **Kiểm soát (Policy as Code):** luật `compose.rego` chặn mọi cấu hình để backend mở cổng host (mục 4).
 
 ## 5.4. F04 — Sai cấu hình an toàn của container
 
@@ -326,7 +338,7 @@ EXPOSE 3000 22 3306           # mở cổng SSH 22, DB 3306
 CMD ["npm", "start"]           # không USER (chạy root), không nhãn nguồn gốc
 ```
 
-Các kiểm tra ngây thơ dễ bị qua mặt: "có lệnh USER" bỏ qua Dockerfile nhiều stage; "EXPOSE không chứa cổng cấm" vô nghĩa vì EXPOSE chỉ là tài liệu; nhãn `mfa="true"` tự khai được.
+Những cách kiểm tra sơ sài dễ bị qua mặt: kiểm tra "có lệnh `USER`" bỏ sót Dockerfile nhiều stage (lệnh `USER` ở stage builder không áp dụng cho image chạy thật); kiểm tra "`EXPOSE` không chứa cổng cấm" không có giá trị vì `EXPOSE` chỉ mang tính tài liệu; nhãn `mfa="true"` có thể tự khai mà không phản ánh cấu hình thực tế.
 
 **Rủi ro nếu để nguyên, không vá.** Mỗi vi phạm dẫn tới một rủi ro an toàn cụ thể:
 
@@ -357,7 +369,7 @@ Tức: thêm lệnh `USER` chạy non-root, bỏ hai cổng quản trị/CSDL kh
 
 **(2) Viết chính sách thành mã (Policy as Code)** bằng Rego/Conftest (`juice-shop/policy/docker_security.rego`), đặt mỗi luật đúng điểm thực thi để không bị qua mặt. Mã nguồn đầy đủ của bộ luật ở **Phụ lục A**.
 
-Cần lưu ý Conftest là **bộ máy chính sách tổng quát, không có luật sẵn**: bản thân nó không tự quét ra lỗi nào. Chính **bộ luật Rego nhóm viết** (kèm mười một unit test chứng minh luật bắt đúng và không bị qua mặt) mới là *cách phát hiện* của F04 — đúng tinh thần Policy as Code: tổ chức tự mã hóa chính sách của mình thành mã, kiểm chứng và chạy lại được trong CI.
+Cần lưu ý Conftest là **bộ máy chính sách tổng quát, không có luật sẵn**: bản thân nó không tự quét ra lỗi nào. Chính **bộ luật Rego được viết riêng** (kèm mười một unit test chứng minh luật bắt đúng và không bị qua mặt) mới là *cách phát hiện* của F04 — đúng tinh thần Policy as Code: tổ chức tự mã hóa chính sách của mình thành mã, kiểm chứng và chạy lại được trong CI.
 
 Các luật và tiêu chuẩn đối chiếu:
 
@@ -367,7 +379,7 @@ Table: Luật kiểm tra cấu hình container — luật yêu cầu gì và d�
 | LEAST-PRIVILEGE | Stage cuối **phải** khai báo `USER` là UID số, không phải root | CIS Docker 4.1; PCI-DSS 2.2; NĐ 13/2023 Đ.26; Luật ATTTM Đ.19 |
 | ATTACK-SURFACE | **Không** được `EXPOSE` cổng quản trị/CSDL (22/23/3306/5432) | CIS Docker 5.8; NIST SP 800-190; Luật ATTTM Đ.19 |
 | SUPPLY-CHAIN | **Phải** có nhãn nguồn gốc OCI; **không** dùng `:latest`/`ADD`; nên ghim digest | OCI image-spec; SLSA; CIS Docker 4.5/4.9 |
-| SECRET-IN-IMAGE *(nhóm bổ sung)* | **Không** đặt bí mật/credential trong `ENV`/`ARG` | CIS Docker 4.10; PCI-DSS 8.2.1; GDPR Đ.32; NĐ 13/2023 Đ.26 |
+| SECRET-IN-IMAGE *(bổ sung)* | **Không** đặt secret/credential trong `ENV`/`ARG` | CIS Docker 4.10; PCI-DSS 8.2.1; GDPR Đ.32; NĐ 13/2023 Đ.26 |
 
 **Nội dung một luật và cách trích chuẩn.** Mỗi luật là một mệnh đề Rego: phần *thân* nêu điều kiện vi phạm trên cây cú pháp của Dockerfile/compose (ví dụ "stage cuối không có lệnh USER", "EXPOSE chứa cổng 22", "ENV chứa từ khóa bí mật"), phần *thông điệp* (`msg`) là lý do trả về khi vi phạm. **Cách trích dẫn chuẩn** được nhúng thẳng vào `msg`: mỗi thông điệp kết thúc bằng danh sách điều khoản áp dụng — ví dụ luật LEAST-PRIVILEGE trả về *"…container runs as root. (CIS Docker 4.1; PCI-DSS 2.2; NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19)"*. Nhờ vậy khi cổng chặn phát hành, người đọc thấy ngay **luật nào bị vi phạm và nó dựa trên điều khoản nào của chuẩn nào** — đây chính là cách policy "trích" chuẩn thành mã, kiểm chứng lại được bằng `conftest`. Mã đầy đủ (kèm trích dẫn) ở Phụ lục A/B.
 
@@ -375,9 +387,9 @@ Table: Luật kiểm tra cấu hình container — luật yêu cầu gì và d�
 
 !fig[tv4.png](Demo F04: Dockerfile.vulnerable bị chặn bốn nhóm luật, bản vá và Dockerfile gốc đạt chính sách){width=15}
 
-**Phân định nguồn.** Bộ luật `docker_security.rego` **kế thừa** cấu trúc và bốn luật cốt lõi từ Appendix A.1 của tài liệu lab (LEAST-PRIVILEGE theo USER ở stage cuối, ATTACK-SURFACE theo cổng cấm, nhãn provenance OCI, SUPPLY-CHAIN `:latest`/digest) cùng cách viết unit test. **Phần nhóm tự làm** gồm: (a) bỏ luật HEALTHCHECK/OBSERVABILITY của lab (thiên về vận hành hơn an toàn, và distroless không chạy được); (b) gộp provenance vào nhóm SUPPLY-CHAIN và nêu rõ đây là provenance *khai báo* (SLSA L1); (c) **tự viết luật `SECRET-IN-IMAGE`** chặn bí mật nhúng trong ENV/ARG — luật này **không có trong lab**, kèm hai unit test. Riêng chính sách `compose.rego` (F03) là **do nhóm tự viết cho docker-compose**: lab chỉ enforce trên manifest Kubernetes (k8s.rego), nhóm chuyển các ý tưởng least-privilege/firewall/secret sang đúng định dạng triển khai thật của mình. Mã nguồn đầy đủ ở **Phụ lục A** (Dockerfile) và **Phụ lục B** (compose).
+**Phân định nguồn.** Bộ luật `docker_security.rego` **kế thừa** cấu trúc và bốn luật cốt lõi từ Appendix A.1 của tài liệu lab (LEAST-PRIVILEGE theo `USER` ở stage cuối, ATTACK-SURFACE theo cổng cấm, nhãn provenance OCI, SUPPLY-CHAIN `:latest`/digest) cùng cách viết unit test. **Phần bổ sung so với tài liệu lab** gồm: (a) loại bỏ luật HEALTHCHECK/OBSERVABILITY (thiên về vận hành hơn an toàn, và image distroless không chạy được); (b) gộp provenance vào nhóm SUPPLY-CHAIN, nêu rõ đây là provenance *khai báo* (SLSA L1); (c) bổ sung luật `SECRET-IN-IMAGE` chặn secret nhúng trong `ENV`/`ARG` — luật **không có trong tài liệu lab**, kèm hai unit test. Chính sách `compose.rego` (F03) được viết bổ sung cho docker-compose: tài liệu lab chỉ áp dụng trên manifest Kubernetes (k8s.rego), báo cáo chuyển các nguyên tắc least-privilege/firewall/secret sang đúng định dạng triển khai thực tế. Mã nguồn đầy đủ ở **Phụ lục A** (Dockerfile) và **Phụ lục B** (compose).
 
-**Chính sách vi phạm:** GDPR Điều 25(1), 32(1)(d); CIS Docker Benchmark 4.1; Nghị định 13/2023 Điều 26; Luật ATTTM 2015 Điều 19; TCVN 11930:2017. **Pha & Policy as Code:** lỗi ở Build/Release; chính sách chạy như một cổng kiểm tra trong pipeline.
+**Chính sách vi phạm:** GDPR Điều 25(1), 32(1)(d); CIS Docker Benchmark 4.1; Nghị định 13/2023 Điều 26; Luật ATTTM 2015 Điều 19; TCVN 11930:2017. **Pha DevSecOps:** Build → Release. **Kiểm soát (Policy as Code):** bộ luật Rego chạy như một cổng kiểm tra bắt buộc trong pipeline.
 
 # 6. Đối chiếu chính sách bảo vệ dữ liệu
 
