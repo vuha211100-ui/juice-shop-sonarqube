@@ -196,6 +196,11 @@ Lệnh chi tiết cho từng cổng (Semgrep SAST, Gitleaks, node:test đỏ→x
 | `semgrep-rules/` | Luật Semgrep cho SAST (F01/F02) |
 | `fixtures/` | Dockerfile/compose mẫu để đối chứng policy |
 | `screenshots/` | Ảnh minh chứng trong báo cáo |
+| `figures/` | Script sinh hình minh hoạ (vd `devsecops_pipeline.py`) |
+| `tools/build_pdf.py` | **Dựng lại PDF** từ `report_concise.md` |
+
+> **Dựng lại PDF báo cáo:** `python report/tools/build_pdf.py` → ghi đè `report/BaoCao_DevSecOps_JuiceShop_gon.pdf`.
+> Chỉ cần Python + Edge/Chrome (máy Windows 11 có sẵn Edge). Sửa nội dung trong `report_concise.md` rồi chạy lại.
 
 > Chính sách **build-time** (Dockerfile F04 + compose F03) ở `policy/` tại **gốc repo**; `report/policy/` chỉ chứa luật **runtime**.
 
