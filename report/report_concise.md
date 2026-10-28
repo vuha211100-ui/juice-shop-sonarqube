@@ -147,9 +147,101 @@ Table: Tra cứu — mỗi tiêu chuẩn/điều khoản tham chiếu yêu cầu
 | Luật ATTTM 2015 Điều 19 | Biện pháp quản lý & kỹ thuật bảo đảm an toàn thông tin cá nhân; tuân thủ tiêu chuẩn kỹ thuật |
 | TCVN 11930:2017 | Yêu cầu cơ bản về an toàn hệ thống thông tin theo cấp độ |
 
-# 4. Bốn lỗi an toàn: phát hiện và xử lý
+# 4. Quy trình DevSecOps và các cổng kiểm soát
 
-## 4.1. F01 — SQL injection tại đăng nhập
+Toàn bộ việc phát hiện và chống tái diễn bốn lỗi được viết thành mã và chạy tự động như một chuỗi kiểm soát (pipeline cục bộ), đúng tinh thần DevSecOps. Hình dưới ánh xạ từng lỗi và cổng kiểm soát vào các pha của vòng đời DevSecOps (xanh dương = Security as Code cho F01/F02; xanh lá = Policy as Code cho F03/F04):
+
+!fig[devsecops-pipeline.png](Quy trình DevSecOps: ánh xạ bốn lỗi F01–F04 và các cổng kiểm soát theo từng pha; Security as Code cho F01/F02, Policy as Code cho F03/F04){width=16}
+
+Hai nhóm kiểm soát trong hình:
+
+- **Security as Code:** quét secret (Gitleaks), SAST (Semgrep) cho F01/F02, và kiểm thử bảo mật `f01-f02.test.ts` (đỏ trước vá, xanh sau vá).
+- **Policy as Code (build-time):** luật Rego cho Dockerfile (F04) và cho `docker-compose` (F03) — chặn cấu hình mở cổng backend hay chạy root **trước khi triển khai**.
+- **Compliance as Code (runtime):** kiểm tra **container đang chạy** bằng `docker inspect` + luật Rego runtime (`report/policy/runtime.rego`, `checks/hardening.py`) — xác nhận non-root, drop capability, chỉ proxy mở cổng loopback. So sánh container đối chứng (trước vá) với bản triển khai (sau vá) chính là cặp ca *lỗi cố ý / đạt* của kiểm tra tuân thủ.
+
+Nhóm kiểm chứng trên **hai môi trường chạy song song**: container đối chứng *trước vá* (image gốc, `127.0.0.1:3100`) và bản triển khai *sau vá* (reverse proxy + backend ở mạng internal, `127.0.0.1:3102`). Cả hai đang chạy:
+
+!fig[env.png](Hai môi trường: đối chứng trước vá (3100) và triển khai sau vá qua proxy (3102); backend chạy ở mạng internal, không mở cổng host){width=16}
+
+Các kiểm soát này được viết thành mã, chạy lặp lại được — hiện chạy cục bộ (xem `DEMO.md`), và có thể ghép thành một chuỗi cổng (gate) trong CI. Mỗi cổng trả PASS/WARN/FAIL; chỉ mức **FAIL (luật `deny`)** mới chặn phát hành, còn mức **WARN (luật `warn`)** chỉ cảnh báo, không chặn. Trong `compose.rego`, các luật `cap_drop`/`read_only` là mức WARN (khuyến cáo), còn các luật mở cổng backend, bind ngoài loopback, privileged, mount docker.sock, secret nội tuyến là mức FAIL (chặn).
+
+Table: Các cổng kiểm soát và lệnh chạy
+| Cổng kiểm soát | Công cụ | Lỗi được kiểm soát | Chặn phát hành |
+|---|---|---|---|
+| Quét secret | Gitleaks | khóa/bí mật lộ trong mã | có |
+| SAST | Semgrep | F01, F02 | có |
+| Kiểm thử bảo mật | node:test (Supertest) | F01, F02 (đỏ→xanh) | có |
+| Policy as Code — build | Conftest/OPA (Rego) | F03, F04 (Dockerfile, compose) | có — luật `deny`; luật `warn` chỉ cảnh báo |
+| Compliance as Code — runtime | Conftest + `docker inspect` | F03, F04 (container đang chạy) | cảnh báo |
+
+Lệnh chạy cụ thể cho từng cổng và từng demo được ghi trong `DEMO.md` (thư mục gốc) và `report/HUONG_DAN_DEMO.md`.
+
+Báo cáo bám theo **bảy pha của tài liệu lab** (*Hands-On Lab Guide: Security as Code with OWASP Juice Shop & Docker*), có thay một số công cụ bằng công cụ tương đương:
+
+Table: Bảy pha DevSecOps của tài liệu lab và cách báo cáo phủ
+| Pha (tài liệu lab) | Hoạt động | Công cụ nhóm dùng | Minh chứng |
+|---|---|---|---|
+| 1. Thiết lập môi trường | Dựng 2 môi trường trước/sau vá bằng Docker | Docker Compose, Node | @fig(env) |
+| 2. Policy as Code | Kiểm chính sách Dockerfile & compose trước khi triển khai | Conftest/OPA (Rego) | @fig(conftest-verify); mục 5.3, 5.4 |
+| 3. SAST & ánh xạ pháp lý | Quét tĩnh tìm lỗi mã; ánh xạ GDPR/PCI | Semgrep *(thay SonarQube)* | @fig(semgrep); mục 5.1, 5.2, 6 |
+| 4. Test-Driven Security | Viết test đỏ trước vá → xanh sau vá | node:test (Supertest) | @fig(f0102-red), @fig(f0102-green) |
+| 5. Vá ứng dụng | Sửa mã theo kết quả kiểm thử | TypeScript / Express | mục 5.1, 5.2 |
+| 6. Compliance as Code | Soi container đang chạy (runtime) | Conftest + `docker inspect` *(thay InSpec)* | @fig(hardening) |
+| 7. Kiểm chứng & nộp | Chạy lại toàn bộ cổng; quét secret | Conftest verify, Gitleaks | @fig(conftest-verify), @fig(gitleaks) |
+
+Hai cổng tự động chạy thật (ảnh chụp output thực tế):
+
+!fig[gitleaks.png](Gitleaks quét toàn bộ commit vá: 24 commit, không có secret/khóa bí mật nào lộ){width=16}
+
+!fig[conftest-verify.png](Conftest verify: toàn bộ 17 unit test của bộ luật Rego (Dockerfile + compose) đều đạt){width=16}
+
+Đoạn mã demo của mỗi thành viên không tách rời tài liệu môn học mà **áp dụng trực tiếp** kỹ thuật được dạy trong đó:
+
+Table: Liên hệ đoạn mã demo với tài liệu môn học
+| Thành viên | Đoạn mã demo | Kỹ thuật & tài liệu môn học áp dụng |
+|---|---|---|
+| Nguyễn Toàn Thắng (F01) | `demos/tv1_f01_sqli.py`, kiểm thử `f01-f02.test.ts` | Shift-left, SAST, Test-Driven Security — slide kiến trúc DevSecOps |
+| Phạm Thị Minh Thúy (F02) | `demos/tv2_f02_idor.py`, kiểm thử phân quyền | Security as Code, kiểm thử trong CI — slide DevSecOps |
+| Đỗ Đức Quốc Anh (F03) | `demos/tv3_f03_metrics.py`, `nginx.conf` | OpSec giảm phơi nhiễm endpoint, reverse proxy & giới hạn tốc độ — slide OpSec/DevSecOps |
+| Hồ Anh Vũ (F04) | `demos/tv4_f04_policy.py`, `docker_security.rego` | Policy as Code với Conftest — hướng dẫn Policy as Code (Conftest) |
+
+Mỗi thành viên lấy một kỹ thuật trong tài liệu môn học và hiện thực hóa thành đoạn mã chạy được để phát hiện hoặc chặn lỗi của mình.
+
+## 4.1. Đoạn mã dò lỗi cốt lõi của mỗi demo
+
+Mỗi script chạy bằng **một lệnh** (`python report/demos/<tên>.py`); phần dò lỗi cốt lõi trích dưới đây.
+
+**F01 — `tv1_f01_sqli.py`:** gửi payload SQL kèm mật khẩu *sai*; còn lỗ hổng nếu vẫn được cấp token.
+
+```python
+status, body = call(base, 'POST', '/rest/user/login', {'email': "' OR 1=1--", 'password': 'wrong-password'})
+token = body.get('authentication', {}).get('token')   # có token = vượt xác thực = còn lỗ hổng
+```
+
+**F02 — `tv2_f02_idor.py`:** dùng token của A đọc giỏ của B; lộ dữ liệu nếu trả đúng giỏ của B.
+
+```python
+s, body = call(base, 'GET', f"/rest/basket/{b['bid']}", token=a['token'])
+leaked = s == 200 and body['data']['id'] == b['bid']   # đọc được giỏ người khác = IDOR
+```
+
+**F03 — `tv3_f03_metrics.py`:** gọi `/metrics`; trước vá 200 (lộ), sau vá qua proxy trả 404.
+
+```python
+s, body = call(BEFORE[1], 'GET', '/metrics')   # trước vá (3100): 200 + hàng trăm dòng số liệu
+s, _ = call(AFTER[1], 'GET', '/metrics')        # sau vá, qua proxy (3102): 404
+```
+
+**F04 — `tv4_f04_policy.py`:** chạy Conftest trên Dockerfile; thoát khác 0 nghĩa là gate chặn.
+
+```python
+p = sh(*CF, 'test', target, '--parser', 'dockerfile', '-p', 'policy', '--namespace', 'dockerfile')
+# p.returncode != 0 -> gate chặn; mỗi dòng FAIL là một luật Rego bị vi phạm
+```
+
+# 5. Bốn lỗi an toàn: phát hiện và xử lý
+
+## 5.1. F01 — SQL injection tại đăng nhập
 
 ### Trước khi sửa
 
@@ -187,7 +279,7 @@ Giới hạn còn lại: bản vá chỉ xử lý injection; cùng dòng code v�
 
 **Chính sách vi phạm:** GDPR Điều 32(1)(b) (bảo mật khi xử lý dữ liệu); Nghị định 13/2023 Điều 26 (biện pháp kỹ thuật bảo vệ dữ liệu cá nhân); Luật ATTTM 2015 Điều 19. **Pha & Security as Code:** phát hiện ở pha Code (SAST), chặn tái diễn ở pha Test bằng kiểm thử bảo mật trong pipeline.
 
-## 4.2. F02 — IDOR khi đọc giỏ hàng
+## 5.2. F02 — IDOR khi đọc giỏ hàng
 
 ### Trước khi sửa
 
@@ -222,7 +314,7 @@ Sau khi sửa, A đọc giỏ của B nhận 404, giỏ của chính mình vẫn
 
 **Chính sách vi phạm:** GDPR Điều 5(1)(f), 25(2); Nghị định 13/2023 Điều 3 (nguyên tắc an toàn) và Điều 26; Luật ATTTM 2015 Điều 17 (không để lộ dữ liệu cá nhân cho bên thứ ba). **Pha & Security as Code:** phát hiện ở Test (kiểm thử phân quyền), giữ trong pipeline để chống tái diễn.
 
-## 4.3. F03 — Lộ endpoint /metrics không xác thực
+## 5.3. F03 — Lộ endpoint /metrics không xác thực
 
 ### Trước khi sửa
 
@@ -250,9 +342,9 @@ Sau khi sửa: `/metrics` qua proxy trả 404 và cổng backend cũ bị từ c
 
 !fig[tv3.png](Demo F03: /metrics lộ khi truy cập trực tiếp, bị chặn sau khi sửa){width=15}
 
-**Chính sách vi phạm:** GDPR Điều 25(2), 32(1)(b); Nghị định 13/2023 Điều 26; Luật ATTTM 2015 Điều 17, 19. **Pha & Policy as Code:** lỗi ở Deploy/Operate; luật `compose.rego` chặn mọi cấu hình cho backend mở cổng (mục 5).
+**Chính sách vi phạm:** GDPR Điều 25(2), 32(1)(b); Nghị định 13/2023 Điều 26; Luật ATTTM 2015 Điều 17, 19. **Pha & Policy as Code:** lỗi ở Deploy/Operate; luật `compose.rego` chặn mọi cấu hình cho backend mở cổng (mục 4).
 
-## 4.4. F04 — Sai cấu hình an toàn của container
+## 5.4. F04 — Sai cấu hình an toàn của container
 
 ### Trước khi sửa
 
@@ -319,75 +411,6 @@ Table: Luật kiểm tra cấu hình container — luật yêu cầu gì và d�
 
 **Chính sách vi phạm:** GDPR Điều 25(1), 32(1)(d); CIS Docker Benchmark 4.1; Nghị định 13/2023 Điều 26; Luật ATTTM 2015 Điều 19; TCVN 11930:2017. **Pha & Policy as Code:** lỗi ở Build/Release; chính sách chạy như một cổng kiểm tra trong pipeline.
 
-# 5. Policy as Code và Security as Code
-
-Toàn bộ việc phát hiện và chống tái diễn bốn lỗi được viết thành mã và chạy tự động như một chuỗi kiểm soát (pipeline cục bộ), đúng tinh thần DevSecOps. Hình dưới ánh xạ từng lỗi và cổng kiểm soát vào các pha của vòng đời DevSecOps (xanh dương = Security as Code cho F01/F02; xanh lá = Policy as Code cho F03/F04):
-
-!fig[devsecops-pipeline.png](Quy trình DevSecOps: ánh xạ bốn lỗi F01–F04 và các cổng kiểm soát theo từng pha; Security as Code cho F01/F02, Policy as Code cho F03/F04){width=16}
-
-Hai nhóm kiểm soát trong hình:
-
-- **Security as Code:** quét secret (Gitleaks), SAST (Semgrep) cho F01/F02, và kiểm thử bảo mật `f01-f02.test.ts` (đỏ trước vá, xanh sau vá).
-- **Policy as Code (build-time):** luật Rego cho Dockerfile (F04) và cho `docker-compose` (F03) — chặn cấu hình mở cổng backend hay chạy root **trước khi triển khai**.
-- **Compliance as Code (runtime):** kiểm tra **container đang chạy** bằng `docker inspect` + luật Rego runtime (`report/policy/runtime.rego`, `checks/hardening.py`) — xác nhận non-root, drop capability, chỉ proxy mở cổng loopback. So sánh container đối chứng (trước vá) với bản triển khai (sau vá) chính là cặp ca *lỗi cố ý / đạt* của kiểm tra tuân thủ.
-
-Các kiểm soát này được viết thành mã, chạy lặp lại được — hiện chạy cục bộ (xem `DEMO.md`), và có thể ghép thành một chuỗi cổng (gate) trong CI. Mỗi cổng trả PASS/WARN/FAIL; chỉ mức **FAIL (luật `deny`)** mới chặn phát hành, còn mức **WARN (luật `warn`)** chỉ cảnh báo, không chặn. Trong `compose.rego`, các luật `cap_drop`/`read_only` là mức WARN (khuyến cáo), còn các luật mở cổng backend, bind ngoài loopback, privileged, mount docker.sock, secret nội tuyến là mức FAIL (chặn).
-
-Table: Các cổng kiểm soát và lệnh chạy
-| Cổng kiểm soát | Công cụ | Lỗi được kiểm soát | Chặn phát hành |
-|---|---|---|---|
-| Quét secret | Gitleaks | khóa/bí mật lộ trong mã | có |
-| SAST | Semgrep | F01, F02 | có |
-| Kiểm thử bảo mật | node:test (Supertest) | F01, F02 (đỏ→xanh) | có |
-| Policy as Code — build | Conftest/OPA (Rego) | F03, F04 (Dockerfile, compose) | có — luật `deny`; luật `warn` chỉ cảnh báo |
-| Compliance as Code — runtime | Conftest + `docker inspect` | F03, F04 (container đang chạy) | cảnh báo |
-
-Lệnh chạy cụ thể cho từng cổng và từng demo được ghi trong `DEMO.md` (thư mục gốc) và `report/HUONG_DAN_DEMO.md`.
-
-Đoạn mã demo của mỗi thành viên không tách rời tài liệu môn học mà **áp dụng trực tiếp** kỹ thuật được dạy trong đó:
-
-Table: Liên hệ đoạn mã demo với tài liệu môn học
-| Thành viên | Đoạn mã demo | Kỹ thuật & tài liệu môn học áp dụng |
-|---|---|---|
-| Nguyễn Toàn Thắng (F01) | `demos/tv1_f01_sqli.py`, kiểm thử `f01-f02.test.ts` | Shift-left, SAST, Test-Driven Security — slide kiến trúc DevSecOps |
-| Phạm Thị Minh Thúy (F02) | `demos/tv2_f02_idor.py`, kiểm thử phân quyền | Security as Code, kiểm thử trong CI — slide DevSecOps |
-| Đỗ Đức Quốc Anh (F03) | `demos/tv3_f03_metrics.py`, `nginx.conf` | OpSec giảm phơi nhiễm endpoint, reverse proxy & giới hạn tốc độ — slide OpSec/DevSecOps |
-| Hồ Anh Vũ (F04) | `demos/tv4_f04_policy.py`, `docker_security.rego` | Policy as Code với Conftest — hướng dẫn Policy as Code (Conftest) |
-
-Mỗi thành viên lấy một kỹ thuật trong tài liệu môn học và hiện thực hóa thành đoạn mã chạy được để phát hiện hoặc chặn lỗi của mình.
-
-## 5.1. Đoạn mã dò lỗi cốt lõi của mỗi demo
-
-Mỗi script chạy bằng **một lệnh** (`python report/demos/<tên>.py`); phần dò lỗi cốt lõi trích dưới đây.
-
-**F01 — `tv1_f01_sqli.py`:** gửi payload SQL kèm mật khẩu *sai*; còn lỗ hổng nếu vẫn được cấp token.
-
-```python
-status, body = call(base, 'POST', '/rest/user/login', {'email': "' OR 1=1--", 'password': 'wrong-password'})
-token = body.get('authentication', {}).get('token')   # có token = vượt xác thực = còn lỗ hổng
-```
-
-**F02 — `tv2_f02_idor.py`:** dùng token của A đọc giỏ của B; lộ dữ liệu nếu trả đúng giỏ của B.
-
-```python
-s, body = call(base, 'GET', f"/rest/basket/{b['bid']}", token=a['token'])
-leaked = s == 200 and body['data']['id'] == b['bid']   # đọc được giỏ người khác = IDOR
-```
-
-**F03 — `tv3_f03_metrics.py`:** gọi `/metrics`; trước vá 200 (lộ), sau vá qua proxy trả 404.
-
-```python
-s, body = call(BEFORE[1], 'GET', '/metrics')   # trước vá (3100): 200 + hàng trăm dòng số liệu
-s, _ = call(AFTER[1], 'GET', '/metrics')        # sau vá, qua proxy (3102): 404
-```
-
-**F04 — `tv4_f04_policy.py`:** chạy Conftest trên Dockerfile; thoát khác 0 nghĩa là gate chặn.
-
-```python
-p = sh(*CF, 'test', target, '--parser', 'dockerfile', '-p', 'policy', '--namespace', 'dockerfile')
-# p.returncode != 0 -> gate chặn; mỗi dòng FAIL là một luật Rego bị vi phạm
-```
-
 # 6. Đối chiếu chính sách bảo vệ dữ liệu
 
 Nhóm đối chiếu mỗi lỗi với cả khung **quốc tế (GDPR)** và **pháp luật Việt Nam** — Nghị định 13/2023/NĐ-CP (bảo vệ dữ liệu cá nhân) và Luật An toàn thông tin mạng 2015. Ý nghĩa cụ thể của từng điều khoản xem **Bảng tra ở mục 3.2**.
@@ -418,7 +441,7 @@ Bốn lỗi an toàn (hai lỗi mã nguồn F01/F02, hai lỗi triển khai F03/
 
 # Phụ lục A — Mã nguồn chính sách Dockerfile (docker_security.rego)
 
-**Nguồn:** kế thừa cấu trúc và các luật cốt lõi từ Appendix A.1 của tài liệu lab (`Policy_as_code_Lab ConfTest.docx`); phần nhóm điều chỉnh/bổ sung: bỏ luật HEALTHCHECK, gộp provenance vào SUPPLY-CHAIN, và **tự viết luật `SECRET-IN-IMAGE`** (xem mục 4.4). Namespace `dockerfile`, 8 luật `deny`; bộ kiểm thử `docker_security_test.rego` có 11 ca. Mỗi thông báo vi phạm trích kèm điều khoản chuẩn quốc tế và Việt Nam (NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19). Chạy: `conftest test <Dockerfile> -p juice-shop/policy --namespace dockerfile`.
+**Nguồn:** kế thừa cấu trúc và các luật cốt lõi từ Appendix A.1 của tài liệu lab (`Policy_as_code_Lab ConfTest.docx`); phần nhóm điều chỉnh/bổ sung: bỏ luật HEALTHCHECK, gộp provenance vào SUPPLY-CHAIN, và **tự viết luật `SECRET-IN-IMAGE`** (xem mục 5.4). Namespace `dockerfile`, 8 luật `deny`; bộ kiểm thử `docker_security_test.rego` có 11 ca. Mỗi thông báo vi phạm trích kèm điều khoản chuẩn quốc tế và Việt Nam (NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19). Chạy: `conftest test <Dockerfile> -p juice-shop/policy --namespace dockerfile`.
 
 ```rego
 # Policy as Code cho Dockerfile của Juice Shop — bám theo lab môn học "Policy as Code with Conftest".
