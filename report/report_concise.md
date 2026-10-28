@@ -100,7 +100,7 @@ Các phát hiện được đối chiếu với chính sách/tiêu chuẩn phổ
 **Quốc tế:**
 
 - **GDPR** (Regulation (EU) 2016/679): khung bảo vệ dữ liệu cá nhân; dùng các Điều 5 (nguyên tắc), 25 (bảo vệ ngay từ thiết kế) và 32 (an toàn khi xử lý) làm cơ sở đánh giá dữ liệu cần bảo vệ.
-- **PCI-DSS v3.2.1**: chuẩn an toàn dữ liệu thẻ thanh toán; Yêu cầu 3.4 (không lưu/không lộ số thẻ đầy đủ), 8.3 (không nhúng bí mật), 2.2.x (không chạy root). *Báo cáo dùng nhất quán đánh số theo v3.2.1* — ở PCI-DSS v4.0 các số này thay đổi (ví dụ 3.4 → 3.5.1).
+- **PCI-DSS v3.2.1**: chuẩn an toàn dữ liệu thẻ thanh toán; Yêu cầu 3.4 (không lưu/không lộ số thẻ đầy đủ), 8.2.1 (không lưu credential ở dạng đọc được), 2.2 (cấu hình an toàn, đặc quyền tối thiểu). *Báo cáo dùng nhất quán đánh số theo v3.2.1* — ở PCI-DSS v4.0 các số này thay đổi (ví dụ 3.4 → 3.5.1).
 - **OWASP Top 10 2021 & CWE**: phân loại loại lỗi — A03 Injection/CWE-89 (F01), A01 Broken Access Control/CWE-639 (F02).
 - **CIS Docker Benchmark**: chuẩn cấu hình container an toàn — các mục 4.1, 4.5, 4.9, 4.10, 5.8 dùng cho F04.
 - **SLSA / OCI image-spec / NIST SP 800-190**: nguồn gốc, toàn vẹn image và an toàn container (F04).
@@ -110,6 +110,34 @@ Các phát hiện được đối chiếu với chính sách/tiêu chuẩn phổ
 - **Nghị định 13/2023/NĐ-CP** về bảo vệ dữ liệu cá nhân (hiệu lực 01/7/2023): **Điều 3** — 8 nguyên tắc (trong đó có nguyên tắc *bảo mật, an toàn*); **Điều 26** — biện pháp bảo vệ dữ liệu cá nhân gồm biện pháp *quản lý* và *kỹ thuật*, áp dụng ngay từ đầu và suốt quá trình xử lý; **Điều 27** — bảo vệ dữ liệu cá nhân cơ bản. Tương ứng GDPR Điều 5/25/32.
 - **Luật An toàn thông tin mạng 2015 (86/2015/QH13)**: **Điều 16** — nguyên tắc bảo vệ thông tin cá nhân; **Điều 17** — không cung cấp/chia sẻ thông tin cá nhân cho bên thứ ba khi chưa được đồng ý (liên quan F02/F03); **Điều 19** — bảo đảm an toàn thông tin cá nhân trên mạng bằng biện pháp quản lý, kỹ thuật và *tuân thủ tiêu chuẩn, quy chuẩn kỹ thuật*.
 - **TCVN 11930:2017** — tiêu chuẩn kỹ thuật quốc gia *Yêu cầu cơ bản về an toàn hệ thống thông tin theo cấp độ*, làm cơ sở kỹ thuật cho cấu hình triển khai tối thiểu (F03/F04).
+
+Để các trích dẫn trong báo cáo không chỉ là mã số, bảng sau nêu rõ **mỗi điều khoản yêu cầu gì**:
+
+Table: Tra cứu — mỗi điều khoản tiêu chuẩn yêu cầu gì
+| Điều khoản | Yêu cầu cụ thể |
+|---|---|
+| CIS Docker 4.1 | Chạy container bằng user riêng, **không phải root** |
+| CIS Docker 4.5 | Dùng ảnh nền tin cậy, ghim phiên bản/digest (tránh tag động `:latest`) |
+| CIS Docker 4.9 | Dùng `COPY` thay cho `ADD` (tránh kéo nội dung từ xa ngoài kiểm soát) |
+| CIS Docker 4.10 | Không lưu bí mật trong Dockerfile |
+| CIS Docker 5.3 | Loại bỏ Linux capabilities không cần (`cap_drop: ALL`) |
+| CIS Docker 5.4 | Không chạy container ở chế độ `privileged` |
+| CIS Docker 5.8 | Chỉ mở đúng cổng cần thiết (không mở cổng quản trị/CSDL) |
+| CIS Docker 5.12 | Gắn hệ thống tệp gốc ở chế độ chỉ đọc (`read_only`) |
+| CIS Docker 5.31 | Không mount Docker socket vào container |
+| PCI-DSS 2.2 | Cấu hình tham số an toàn hệ thống, chạy với đặc quyền tối thiểu |
+| PCI-DSS 3.4 | Làm số thẻ (PAN) không đọc được ở mọi nơi lưu trữ |
+| PCI-DSS 8.2.1 | Không lưu thông tin xác thực (credential) ở dạng đọc được |
+| GDPR Điều 5(1)(f) | Nguyên tắc toàn vẹn & bảo mật khi xử lý dữ liệu |
+| GDPR Điều 25 | Bảo vệ dữ liệu ngay từ thiết kế và theo mặc định |
+| GDPR Điều 32 | Biện pháp kỹ thuật & tổ chức bảo đảm an toàn khi xử lý |
+| NĐ 13/2023 Điều 3 | Nguyên tắc bảo vệ dữ liệu cá nhân (gồm nguyên tắc bảo mật, an toàn) |
+| NĐ 13/2023 Điều 26 | Biện pháp quản lý & kỹ thuật bảo vệ dữ liệu cá nhân, từ đầu và suốt quá trình xử lý |
+| Luật ATTTM 2015 Điều 17 | Không chia sẻ thông tin cá nhân cho bên thứ ba khi chưa được đồng ý |
+| Luật ATTTM 2015 Điều 19 | Biện pháp quản lý & kỹ thuật bảo đảm an toàn thông tin cá nhân; tuân thủ tiêu chuẩn kỹ thuật |
+| OCI image-spec / SLSA | Khai báo nguồn gốc (provenance) & bảo đảm toàn vẹn chuỗi cung ứng ảnh |
+| NIST SP 800-190 | Hướng dẫn an toàn cho container |
+| TCVN 11930:2017 | Yêu cầu cơ bản về an toàn hệ thống thông tin theo cấp độ |
 
 # 4. Bốn lỗi an toàn: phát hiện và xử lý
 
@@ -265,15 +293,15 @@ Cần lưu ý Conftest là **bộ máy chính sách tổng quát, không có lu�
 
 Các luật và tiêu chuẩn đối chiếu:
 
-Table: Luật kiểm tra cấu hình container và tiêu chuẩn đối chiếu
-| Luật | Vi phạm bị chặn | Tiêu chuẩn (quốc tế + Việt Nam) |
+Table: Luật kiểm tra cấu hình container — luật yêu cầu gì và dựa trên chuẩn nào
+| Luật | Luật yêu cầu gì (chặn khi vi phạm) | Tiêu chuẩn (ý nghĩa xem Bảng tra ở mục 3.2) |
 |---|---|---|
-| LEAST-PRIVILEGE | stage cuối chạy root | CIS Docker 4.1; PCI-DSS 2.2.6; **NĐ 13/2023 Đ.26; Luật ATTTM Đ.19** |
-| ATTACK-SURFACE | EXPOSE cổng 22/23/3306/5432 | CIS Docker 5.8; NIST SP 800-190; **Luật ATTTM Đ.19** |
-| SUPPLY-CHAIN | thiếu nhãn nguồn gốc OCI (provenance khai báo); dùng :latest/ADD; chưa ghim digest | OCI image-spec; SLSA; CIS Docker 4.5/4.9 |
-| SECRET-IN-IMAGE *(nhóm bổ sung)* | nhúng bí mật trong ENV/ARG | CIS Docker 4.10; PCI-DSS 8.3; GDPR Đ.32; **NĐ 13/2023 Đ.26** |
+| LEAST-PRIVILEGE | Stage cuối **phải** khai báo `USER` là UID số, không phải root | CIS Docker 4.1; PCI-DSS 2.2; NĐ 13/2023 Đ.26; Luật ATTTM Đ.19 |
+| ATTACK-SURFACE | **Không** được `EXPOSE` cổng quản trị/CSDL (22/23/3306/5432) | CIS Docker 5.8; NIST SP 800-190; Luật ATTTM Đ.19 |
+| SUPPLY-CHAIN | **Phải** có nhãn nguồn gốc OCI; **không** dùng `:latest`/`ADD`; nên ghim digest | OCI image-spec; SLSA; CIS Docker 4.5/4.9 |
+| SECRET-IN-IMAGE *(nhóm bổ sung)* | **Không** đặt bí mật/credential trong `ENV`/`ARG` | CIS Docker 4.10; PCI-DSS 8.2.1; GDPR Đ.32; NĐ 13/2023 Đ.26 |
 
-**Nội dung một luật và cách trích chuẩn.** Mỗi luật là một mệnh đề Rego: phần *thân* nêu điều kiện vi phạm trên cây cú pháp của Dockerfile/compose (ví dụ "stage cuối không có lệnh USER", "EXPOSE chứa cổng 22", "ENV chứa từ khóa bí mật"), phần *thông điệp* (`msg`) là lý do trả về khi vi phạm. **Cách trích dẫn chuẩn** được nhúng thẳng vào `msg`: mỗi thông điệp kết thúc bằng danh sách điều khoản áp dụng — ví dụ luật LEAST-PRIVILEGE trả về *"…container runs as root. (CIS Docker 4.1; PCI-DSS 2.2.6; NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19)"*. Nhờ vậy khi cổng chặn phát hành, người đọc thấy ngay **luật nào bị vi phạm và nó dựa trên điều khoản nào của chuẩn nào** — đây chính là cách policy "trích" chuẩn thành mã, kiểm chứng lại được bằng `conftest`. Mã đầy đủ (kèm trích dẫn) ở Phụ lục A/B.
+**Nội dung một luật và cách trích chuẩn.** Mỗi luật là một mệnh đề Rego: phần *thân* nêu điều kiện vi phạm trên cây cú pháp của Dockerfile/compose (ví dụ "stage cuối không có lệnh USER", "EXPOSE chứa cổng 22", "ENV chứa từ khóa bí mật"), phần *thông điệp* (`msg`) là lý do trả về khi vi phạm. **Cách trích dẫn chuẩn** được nhúng thẳng vào `msg`: mỗi thông điệp kết thúc bằng danh sách điều khoản áp dụng — ví dụ luật LEAST-PRIVILEGE trả về *"…container runs as root. (CIS Docker 4.1; PCI-DSS 2.2; NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19)"*. Nhờ vậy khi cổng chặn phát hành, người đọc thấy ngay **luật nào bị vi phạm và nó dựa trên điều khoản nào của chuẩn nào** — đây chính là cách policy "trích" chuẩn thành mã, kiểm chứng lại được bằng `conftest`. Mã đầy đủ (kèm trích dẫn) ở Phụ lục A/B.
 
 `conftest verify` cho toàn bộ chính sách đạt 17/17 ca kiểm thử (11 ca cho chính sách Dockerfile của F04, 6 ca cho chính sách compose của F03). Kết quả: `Dockerfile.vulnerable` bị chặn 4 nhóm luật (LEAST-PRIVILEGE, ATTACK-SURFACE, SUPPLY-CHAIN, SECRET-IN-IMAGE), bản vá đạt, và Dockerfile gốc distroless của Juice Shop **đạt toàn bộ chính sách an toàn** (@fig(tv4)).
 
@@ -375,7 +403,7 @@ Bốn lỗi an toàn (hai lỗi mã nguồn F01/F02, hai lỗi triển khai F03/
 - OWASP Juice Shop — https://owasp.org/www-project-juice-shop/
 - GDPR, Regulation (EU) 2016/679, Điều 5, 25, 32.
 - Pháp luật Việt Nam: Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân (Điều 3, 26, 27); Luật An toàn thông tin mạng 2015 (86/2015/QH13, Điều 16, 17, 19); TCVN 11930:2017.
-- CIS Docker Benchmark; PCI-DSS v3.2.1 (Yêu cầu 3.4, 8.3, 2.2.x); OWASP Top 10 2021; SLSA.
+- CIS Docker Benchmark; PCI-DSS v3.2.1 (Yêu cầu 3.4, 8.2.1, 2.2); OWASP Top 10 2021; SLSA.
 - Công cụ: Semgrep, Gitleaks, node:test (Supertest), Conftest/OPA.
 - Tài liệu môn học: bộ slide DevSecOps và hướng dẫn Policy as Code (Conftest).
 
@@ -416,12 +444,12 @@ last_user := final_users[count(final_users) - 1] if count(final_users) > 0
 # LEAST-PRIVILEGE ------------------------------------------------------------
 deny contains msg if {
 	count(final_users) == 0
-	msg := "LEAST-PRIVILEGE: final stage has no USER instruction; container runs as root. (CIS Docker 4.1; PCI-DSS 2.2.6; NIST SP 800-190; NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19)"
+	msg := "LEAST-PRIVILEGE: final stage has no USER instruction; container runs as root. (CIS Docker 4.1; PCI-DSS 2.2; NIST SP 800-190; NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19)"
 }
 
 deny contains msg if {
 	last_user in root_names
-	msg := sprintf("LEAST-PRIVILEGE: final USER '%s' is root. (CIS Docker 4.1; PCI-DSS 2.2.6; NĐ 13/2023 Đ.26)", [last_user])
+	msg := sprintf("LEAST-PRIVILEGE: final USER '%s' is root. (CIS Docker 4.1; PCI-DSS 2.2; NĐ 13/2023 Đ.26)", [last_user])
 }
 
 warn contains msg if {
@@ -487,7 +515,7 @@ deny contains msg if {
 	i + 1 < count(ins.Value)
 	regex.match(secret_key, key)
 	ins.Value[i + 1] != ""
-	msg := sprintf("SECRET-IN-IMAGE: ENV '%s' hardcodes a credential into the image (exposed via docker history); use build secrets/runtime env. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.3; NĐ 13/2023 Đ.26)", [key])
+	msg := sprintf("SECRET-IN-IMAGE: ENV '%s' hardcodes a credential into the image (exposed via docker history); use build secrets/runtime env. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 13/2023 Đ.26)", [key])
 }
 
 deny contains msg if {
@@ -497,7 +525,7 @@ deny contains msg if {
 	contains(tok, "=")
 	regex.match(secret_key, split(tok, "=")[0])
 	split(tok, "=")[1] != ""
-	msg := sprintf("SECRET-IN-IMAGE: ARG '%s' bakes a credential default into the image. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.3; NĐ 13/2023 Đ.26)", [split(tok, "=")[0]])
+	msg := sprintf("SECRET-IN-IMAGE: ARG '%s' bakes a credential default into the image. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 13/2023 Đ.26)", [split(tok, "=")[0]])
 }
 ```
 
@@ -575,7 +603,7 @@ deny contains msg if {
 	some name, svc in input.services
 	some e in env(svc)
 	regex.match(`(?i)^[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)=.+`, e)
-	msg := sprintf("[PCI-DSS 8.3 / GDPR Art.32 / NĐ 13/2023 Đ.26] service '%s' has an inline secret in environment: %s", [name, split(e, "=")[0]])
+	msg := sprintf("[PCI-DSS 8.2.1 / GDPR Art.32 / NĐ 13/2023 Đ.26] service '%s' has an inline secret in environment: %s", [name, split(e, "=")[0]])
 }
 
 drops_all_caps(svc) if "ALL" in object.get(svc, "cap_drop", [])

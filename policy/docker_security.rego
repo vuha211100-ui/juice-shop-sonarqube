@@ -29,12 +29,12 @@ last_user := final_users[count(final_users) - 1] if count(final_users) > 0
 # LEAST-PRIVILEGE ------------------------------------------------------------
 deny contains msg if {
 	count(final_users) == 0
-	msg := "LEAST-PRIVILEGE: final stage has no USER instruction; container runs as root. (CIS Docker 4.1; PCI-DSS 2.2.6; NIST SP 800-190; NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19)"
+	msg := "LEAST-PRIVILEGE: final stage has no USER instruction; container runs as root. (CIS Docker 4.1; PCI-DSS 2.2; NIST SP 800-190; NĐ 13/2023 Đ.26; Luật ATTTM 2015 Đ.19)"
 }
 
 deny contains msg if {
 	last_user in root_names
-	msg := sprintf("LEAST-PRIVILEGE: final USER '%s' is root. (CIS Docker 4.1; PCI-DSS 2.2.6; NĐ 13/2023 Đ.26)", [last_user])
+	msg := sprintf("LEAST-PRIVILEGE: final USER '%s' is root. (CIS Docker 4.1; PCI-DSS 2.2; NĐ 13/2023 Đ.26)", [last_user])
 }
 
 warn contains msg if {
@@ -100,7 +100,7 @@ deny contains msg if {
 	i + 1 < count(ins.Value)
 	regex.match(secret_key, key)
 	ins.Value[i + 1] != ""
-	msg := sprintf("SECRET-IN-IMAGE: ENV '%s' hardcodes a credential into the image (exposed via docker history); use build secrets/runtime env. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.3; NĐ 13/2023 Đ.26)", [key])
+	msg := sprintf("SECRET-IN-IMAGE: ENV '%s' hardcodes a credential into the image (exposed via docker history); use build secrets/runtime env. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 13/2023 Đ.26)", [key])
 }
 
 deny contains msg if {
@@ -110,5 +110,5 @@ deny contains msg if {
 	contains(tok, "=")
 	regex.match(secret_key, split(tok, "=")[0])
 	split(tok, "=")[1] != ""
-	msg := sprintf("SECRET-IN-IMAGE: ARG '%s' bakes a credential default into the image. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.3; NĐ 13/2023 Đ.26)", [split(tok, "=")[0]])
+	msg := sprintf("SECRET-IN-IMAGE: ARG '%s' bakes a credential default into the image. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 13/2023 Đ.26)", [split(tok, "=")[0]])
 }

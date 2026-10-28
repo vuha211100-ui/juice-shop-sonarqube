@@ -67,7 +67,7 @@ deny contains msg if {
 	some name, svc in input.services
 	some e in env(svc)
 	regex.match(`(?i)^[A-Z0-9_]*(PASSWORD|SECRET|TOKEN|API_KEY)=.+`, e)
-	msg := sprintf("[PCI-DSS 8.3 / GDPR Art.32 / NĐ 13/2023 Đ.26] service '%s' has an inline secret in environment: %s", [name, split(e, "=")[0]])
+	msg := sprintf("[PCI-DSS 8.2.1 / GDPR Art.32 / NĐ 13/2023 Đ.26] service '%s' has an inline secret in environment: %s", [name, split(e, "=")[0]])
 }
 
 drops_all_caps(svc) if "ALL" in object.get(svc, "cap_drop", [])
