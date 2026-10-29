@@ -2,6 +2,9 @@
 node_modules/
 *.sqlite
 order_*.pdf
+# Report build intermediates
+__pycache__/
+report/*.np.pdf
 app/
 !frontend/src/app
 uploads/complaints/*.*

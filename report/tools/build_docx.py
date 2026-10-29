@@ -3,7 +3,7 @@
 Cần: Python + python-docx (`pip install python-docx`). Không cần Word/Office.
 Chạy:  python report/tools/build_docx.py
 Ra:    report/BaoCao_DevSecOps_JuiceShop_gon.docx
-Mục lục là field TOC của Word — mở file, bấm Ctrl+A rồi F9 để cập nhật số trang.
+Mục lục là tĩnh (sinh sẵn đề mục + số trang từ bản PDF), hiển thị ngay không cần cập nhật field.
 """
 import pathlib
 import re
@@ -11,6 +11,7 @@ import sys
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH as ALIGN
+from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -177,6 +178,43 @@ def field(p, instr, placeholder=''):
             it = OxmlElement('w:instrText'); it.set(qn('xml:space'), 'preserve'); it.text = txt; r.append(it)
 
 
+def toc_headings(md):
+    """Đề mục cấp 1-2 theo thứ tự (bỏ khối mã), kèm số trang lấy từ bản PDF đã dựng.
+    Dùng lần XUẤT HIỆN CUỐI của mỗi đề mục để bỏ qua mục lục của chính bản PDF."""
+    heads, in_code = [], False
+    for ln in md.split('\n'):
+        if ln.startswith('```'):
+            in_code = not in_code
+            continue
+        if not in_code:
+            m = re.match(r'^(#{1,2})\s+(.*)$', ln)
+            if m:
+                heads.append((len(m.group(1)), re.sub(r'\*\*|\*|`', '', m.group(2).strip())))
+    page = {}
+    try:
+        import fitz
+        pdf = REPORT / 'BaoCao_DevSecOps_JuiceShop_gon.pdf'
+        if pdf.exists():
+            texts = [p.get_text() for p in fitz.open(str(pdf))]
+            for _, txt in heads:
+                key = txt[:40]
+                page[txt] = max((i + 1 for i, t in enumerate(texts) if key in t), default=None)
+    except Exception:
+        pass
+    return [(lvl, txt, page.get(txt)) for lvl, txt in heads]
+
+
+def build_toc(doc, md):
+    """Mục lục TĨNH (hiển thị ngay, không cần cập nhật field)."""
+    for lvl, txt, pg in toc_headings(md):
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Cm(0.5 * (lvl - 1))
+        p.paragraph_format.space_after = Pt(3)
+        p.paragraph_format.tab_stops.add_tab_stop(Cm(16), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS)
+        r = p.add_run(txt); r.font.size = Pt(12); r.bold = (lvl == 1)
+        pr = p.add_run('\t' + (str(pg) if pg else '')); pr.font.size = Pt(12); pr.bold = (lvl == 1)
+
+
 def build():
     global FIG_MAP
     md = expand_includes(SRC.read_text(encoding='utf-8'))
@@ -184,7 +222,7 @@ def build():
                for i, m in enumerate(re.finditer(r'!fig\[([^\]]+)\]', md), 1)}
 
     doc = Document()
-    # cho Word tự cập nhật mục lục khi mở (không cần hướng dẫn Ctrl+A/F9 thủ công)
+    # cho Word tự cập nhật số trang ở chân trang (field PAGE) khi mở
     upd = OxmlElement('w:updateFields'); upd.set(qn('w:val'), 'true')
     doc.settings.element.append(upd)
     normal = doc.styles['Normal']
@@ -232,9 +270,10 @@ def build():
     p.add_run(DATE).font.size = Pt(13)
     doc.add_page_break()
 
-    # ----- mục lục -----
+    # ----- mục lục (tĩnh: hiển thị ngay, không cần F9) -----
     h = doc.add_paragraph(); r = h.add_run('Mục lục'); r.bold = True; r.font.size = Pt(16); r.font.color.rgb = NAVY
-    field(doc.add_paragraph(), 'TOC \\o "1-2" \\h \\z \\u', 'Mục lục tự cập nhật khi mở tài liệu.')
+    doc.add_paragraph()
+    build_toc(doc, md)
     doc.add_page_break()
 
     # ----- thân -----
