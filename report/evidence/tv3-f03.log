@@ -1,0 +1,14 @@
+# EVIDENCE tv3-f03
+# command : python report/demos/tv3_f03_metrics.py
+# cwd     : E:\banhoaqua\juice-shop
+# time    : 2026-10-31 21:31
+# exit    : 0
+# ----- combined stdout+stderr -----
+Môi trường  Truy cập                                           Kết quả   Kết luận
+----------  -------------------------------------------------  --------  ---------------------------------
+trước vá    GET 127.0.0.1:3100/metrics                         200       LỘ: 393 dòng metrics
+sau vá      GET 127.0.0.1:3102/metrics (qua proxy)             404       chặn tại proxy
+sau vá      GET 127.0.0.1:3102/ (trang chủ)                    200       ứng dụng vẫn hoạt động
+sau vá      GET 127.0.0.1:3101/metrics (cổng backend cũ)       refused   không còn đường vòng
+sau vá      docker inspect cổng host của backend               không có  backend chỉ ở mạng internal
+sau vá      giám sát nội bộ: proxy -> juice-shop:3000/metrics  đọc được  393 dòng, chỉ trong mạng internal

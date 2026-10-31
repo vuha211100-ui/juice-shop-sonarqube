@@ -1,20 +1,20 @@
 # EVIDENCE f0102-green-test
 # command : node --import ./test/api/helpers/test-env.mjs --import tsx --test test/api/security/f01-f02.test.ts
 # cwd     : E:\banhoaqua\juice-shop
-# time    : 2026-10-29 01:52
+# time    : 2026-10-31 21:31
 # exit    : 0
 # ----- combined stdout+stderr -----
 ▶ F01 — đăng nhập không bị SQL injection
-  ✔ đăng nhập đúng email và mật khẩu vẫn trả token (56.5408ms)
-  ✔ payload "' OR 1=1--" với mật khẩu sai bị từ chối (401) (12.73ms)
-  ✔ payload "admin@juice-sh.op'--" với mật khẩu sai bị từ chối (401) (19.3659ms)
-  ✔ payload "' UNION SELECT * FROM Users--" với mật khẩu sai bị từ chối (401) (38.4544ms)
-  ✔ payload "';" với mật khẩu sai bị từ chối (401) (25.8081ms)
-  ✔ email không phải chuỗi bị từ chối (401) (21.9098ms)
-✔ F01 — đăng nhập không bị SQL injection (753.0445ms)
+  ✔ đăng nhập đúng email và mật khẩu vẫn trả token (83.5732ms)
+  ✔ payload "' OR 1=1--" với mật khẩu sai bị từ chối (401) (18.7395ms)
+  ✔ payload "admin@juice-sh.op'--" với mật khẩu sai bị từ chối (401) (20.1924ms)
+  ✔ payload "' UNION SELECT * FROM Users--" với mật khẩu sai bị từ chối (401) (25.2957ms)
+  ✔ payload "';" với mật khẩu sai bị từ chối (401) (23.5652ms)
+  ✔ email không phải chuỗi bị từ chối (401) (23.0399ms)
+✔ F01 — đăng nhập không bị SQL injection (1364.1959ms)
 ▶ F02 — tải tệp tĩnh không bị path traversal qua poison null byte
-  ✔ tệp .md hợp lệ vẫn tải được (200) (11.6249ms)
-error: [aab566143736] Error: File names cannot contain null bytes!
+  ✔ tệp .md hợp lệ vẫn tải được (200) (10.6369ms)
+error: [dd9c1101e210] Error: File names cannot contain null bytes!
     at verify (E:\banhoaqua\juice-shop\routes\fileServer.ts:30:12)
     at <anonymous> (E:\banhoaqua\juice-shop\routes\fileServer.ts:18:7)
     at Layer.handle [as handle_request] (E:\banhoaqua\juice-shop\node_modules\express\lib\router\layer.js:95:5)
@@ -26,8 +26,8 @@ error: [aab566143736] Error: File names cannot contain null bytes!
     at next (E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:280:10)
     at E:\banhoaqua\juice-shop\node_modules\serve-index\index.js:139:16
     at FSReqCallback.oncomplete (node:fs:195:21)
-  ✔ poison null byte không vượt allowlist để đọc package.json.bak (403) (9.0871ms)
-error: [dae231b9b507] Error: File names cannot contain null bytes!
+  ✔ poison null byte không vượt allowlist để đọc package.json.bak (403) (10.2923ms)
+error: [17585b2dfdad] Error: File names cannot contain null bytes!
     at verify (E:\banhoaqua\juice-shop\routes\fileServer.ts:30:12)
     at <anonymous> (E:\banhoaqua\juice-shop\routes\fileServer.ts:18:7)
     at Layer.handle [as handle_request] (E:\banhoaqua\juice-shop\node_modules\express\lib\router\layer.js:95:5)
@@ -39,8 +39,8 @@ error: [dae231b9b507] Error: File names cannot contain null bytes!
     at next (E:\banhoaqua\juice-shop\node_modules\express\lib\router\index.js:280:10)
     at E:\banhoaqua\juice-shop\node_modules\serve-index\index.js:139:16
     at FSReqCallback.oncomplete (node:fs:195:21)
-  ✔ poison null byte không đọc được bản sao lưu coupon (403) (6.9947ms)
-✔ F02 — tải tệp tĩnh không bị path traversal qua poison null byte (28.1289ms)
+  ✔ poison null byte không đọc được bản sao lưu coupon (403) (7.3393ms)
+✔ F02 — tải tệp tĩnh không bị path traversal qua poison null byte (28.7252ms)
 ℹ tests 9
 ℹ suites 2
 ℹ pass 9
@@ -48,4 +48,4 @@ error: [dae231b9b507] Error: File names cannot contain null bytes!
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 3220.6656
+ℹ duration_ms 5631.4575

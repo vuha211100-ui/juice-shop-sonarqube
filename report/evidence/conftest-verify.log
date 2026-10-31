@@ -2,7 +2,7 @@
 # command : conftest verify -p policy
 # argv    : docker run --rm -v E:/banhoaqua/juice-shop:/work:ro -w /work openpolicyagent/conftest:v0.71.1 verify -p policy --no-color
 # cwd     : E:\banhoaqua\juice-shop
-# time    : 2026-10-29 01:55
+# time    : 2026-10-31 17:34
 # tool    : openpolicyagent/conftest:v0.71.1
 # exit    : 0
 # ----- combined stdout+stderr -----

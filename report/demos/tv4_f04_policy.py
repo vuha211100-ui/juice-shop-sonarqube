@@ -3,7 +3,7 @@
 Vấn đề: image/triển khai của Juice Shop phải tuân thủ chính sách an toàn tối thiểu của tổ chức.
 Các "original check" ngây thơ (USER bất kỳ, EXPOSE, LABEL mfa="true"...) dễ bị qua mặt; bộ policy
 docker_security.rego đặt luật tại điểm thực thi đúng. Demo chạy Conftest trên:
-  - Dockerfile.vulnerable (4 vi phạm cố ý) -> phải FAIL
+  - Dockerfile.vulnerable (6 vi phạm / 4 nhóm cố ý) -> phải FAIL
   - Dockerfile.remediated (bản vá của lab)  -> phải PASS
   - Dockerfile gốc Juice Shop (distroless)  -> đạt toàn bộ chính sách an toàn
 """
@@ -25,7 +25,7 @@ verify = sh(*CF, 'verify', '-p', 'policy', '--no-color')
 print('conftest verify -p policy  ->  ' + next((l.strip() for l in verify.stdout.splitlines() if 'tests,' in l), '?'))
 print()
 rows = [('Dockerfile', 'Exit', 'Nhóm luật bị chặn', 'Kết luận')]
-for target, desc, bad in [('Dockerfile.vulnerable', 'Dockerfile.vulnerable (4 vi phạm)', True),
+for target, desc, bad in [('Dockerfile.vulnerable', 'Dockerfile.vulnerable (6 vi phạm / 4 nhóm)', True),
                           ('report/fixtures/Dockerfile.remediated', 'Dockerfile.remediated (bản vá)', False),
                           ('Dockerfile', 'Dockerfile gốc Juice Shop (distroless)', False),
                           ('deploy/Dockerfile.hotfix', 'hotfix image F01/F02', False)]:

@@ -1,9 +1,13 @@
-"""Dựng ảnh demo F02 + ảnh kiểm thử F01/F02 (đỏ/xanh) từ output chạy THẬT.
+"""Dựng ảnh 4 demo F01–F04 + ảnh kiểm thử F01/F02 (đỏ/xanh) từ output chạy THẬT.
 
-- tv2.png        : chạy demo F02 (SQL injection ở tìm kiếm) trên 3100 vs 3102.
+- tv1.png        : demo F01 (SQL injection đăng nhập) trên 3100 vs 3102.
+- tv2.png        : demo F02 (Poison Null Byte, lộ tệp sao lưu) trên 3100 vs 3102.
+- tv3.png        : demo F03 (lộ endpoint /metrics) trên 3100 vs 3102.
+- tv4.png        : demo F04 (Policy as Code, Conftest) trên các Dockerfile vá/lỗi/gốc.
 - f0102-green.png: node:test trên mã ĐÃ VÁ (toàn bộ xanh).
-- f0102-red.png  : node:test trên mã baseline (search.ts chưa vá) -> các ca F02 đỏ.
+- f0102-red.png  : node:test trên mã baseline (login.ts + fileServer.ts chưa vá) -> F01+F02 đỏ.
 
+Mỗi demo chạy thật, lưu log gốc report/evidence/<id>.log rồi render lại chính output đó.
 Cần Docker + 3 container demo đang chạy. Chạy: python report/figures/capture_demos.py
 """
 import pathlib
@@ -56,35 +60,73 @@ def test_blocks(out, commitline):
     return b
 
 
-def main():
-    # 1) Demo F02 — poison null byte
-    out = runout(['python', 'report/demos/tv2_f02_pathtraversal.py'],
-                 evid_id='tv2-f02', display='python report/demos/tv2_f02_pathtraversal.py')
-    blocks = [('cmd', 'python report/demos/tv2_f02_pathtraversal.py   # F02 Poison Null Byte')]
-    for ln in out.split('\n'):
-        if 'LỖ HỔNG' in ln:
-            blocks.append(('hl', ln))
-        elif 'an toàn' in ln:
-            blocks.append(('ok', ln))
-        else:
-            blocks.append(('out', ln))
-    render(SHOTS / 'tv2.png', 'Windows PowerShell — Demo F02: Poison Null Byte (doc tep sao luu) (trước vá 3100 / sau vá 3102)', blocks)
+def _demo(script, png, title, comment, evid, classify):
+    """Chạy một demo THẬT, lưu log gốc, render ảnh terminal có footer dẫn log."""
+    out = runout(['python', f'report/demos/{script}'], evid_id=evid,
+                 display=f'python report/demos/{script}')
+    blocks = [('cmd', f'python report/demos/{script}   # {comment}')]
+    blocks += [(classify(ln), ln) for ln in out.split('\n')]
+    render(SHOTS / png, title, blocks, evid_id=evid, rc=0)
 
-    # 2) f0102-green: mã đã vá (trạng thái hiện tại)
+
+def _cl_sqli(ln):               # tv1 (F01) + tv2 (F02): tô LỖ HỔNG / an toàn
+    return 'hl' if 'LỖ HỔNG' in ln else ('ok' if 'an toàn' in ln else 'out')
+
+
+def _cl_metrics(ln):            # tv3 (F03)
+    if 'LỘ' in ln:
+        return 'hl'
+    if any(k in ln for k in ('chặn tại proxy', 'không còn đường vòng', 'mạng internal',
+                             'vẫn hoạt động', 'đọc được')):
+        return 'ok'
+    return 'fail' if ('KHÔNG' in ln or 'CÒN ĐƯỜNG' in ln) else 'out'
+
+
+def _cl_policy(ln):             # tv4 (F04)
+    if ln.startswith('conftest verify') or 'đúng:' in ln:
+        return 'ok'
+    return 'fail' if 'SAI' in ln else 'out'
+
+
+def main():
+    # 1) Demo F01 — SQL injection đăng nhập
+    _demo('tv1_f01_sqli.py', 'tv1.png',
+          'Windows PowerShell — Demo F01: SQL injection đăng nhập (trước vá 3100 / sau vá 3102)',
+          'F01 SQL injection đăng nhập', 'tv1-f01', _cl_sqli)
+
+    # 2) Demo F02 — Poison Null Byte (lộ tệp sao lưu)
+    _demo('tv2_f02_pathtraversal.py', 'tv2.png',
+          'Windows PowerShell — Demo F02: Poison Null Byte (lộ tệp sao lưu) (trước vá 3100 / sau vá 3102)',
+          'F02 Poison Null Byte', 'tv2-f02', _cl_sqli)
+
+    # 3) Demo F03 — lộ endpoint /metrics
+    _demo('tv3_f03_metrics.py', 'tv3.png',
+          'Windows PowerShell — Demo F03: endpoint /metrics (trước vá 3100 / sau vá 3102)',
+          'F03 lộ /metrics', 'tv3-f03', _cl_metrics)
+
+    # 4) Demo F04 — Policy as Code (Conftest)
+    _demo('tv4_f04_policy.py', 'tv4.png',
+          'Windows PowerShell — Demo F04: Policy as Code cho container (Conftest)',
+          'F04 Policy as Code', 'tv4-f04', _cl_policy)
+
+    # 5) f0102-green: mã đã vá (trạng thái hiện tại)
     render(SHOTS / 'f0102-green.png', 'Windows PowerShell — kiểm thử bảo mật F01/F02 SAU khi vá',
            test_blocks(runout(TCMD, evid_id='f0102-green-test', display=TLINE),
                        'HEAD  test(security): F01 SQLi dang nhap + F02 null byte /ftp (da va)'))
 
-    # 3) f0102-red: swap baseline fileServer.ts (lưu lại bản vá), chạy, rồi khôi phục
-    fsrv = ROOT / 'routes' / 'fileServer.ts'
-    patched = fsrv.read_text(encoding='utf-8')
-    base = subprocess.run(['git', '-C', str(ROOT), 'show', '21219d66d:routes/fileServer.ts'],
-                          capture_output=True, text=True, encoding='utf-8').stdout
-    fsrv.write_text(base, encoding='utf-8')
+    # 6) f0102-red: swap baseline CẢ login.ts (F01) LẪN fileServer.ts (F02) -> cả hai lỗi đều đỏ
+    targets = {ROOT / 'routes' / 'login.ts': 'routes/login.ts',
+               ROOT / 'routes' / 'fileServer.ts': 'routes/fileServer.ts'}
+    patched = {p: p.read_text(encoding='utf-8') for p in targets}
+    for p, rel in targets.items():
+        base = subprocess.run(['git', '-C', str(ROOT), 'show', f'21219d66d:{rel}'],
+                              capture_output=True, text=True, encoding='utf-8').stdout
+        p.write_text(base, encoding='utf-8')
     try:
-        out = runout(TCMD, evid_id='f0102-red-test', display=TLINE + '   # baseline fileServer.ts')
+        out = runout(TCMD, evid_id='f0102-red-test', display=TLINE + '   # baseline login.ts + fileServer.ts')
     finally:
-        fsrv.write_text(patched, encoding='utf-8')
+        for p, txt in patched.items():
+            p.write_text(txt, encoding='utf-8')
     render(SHOTS / 'f0102-red.png', 'Windows PowerShell — kiểm thử bảo mật F01/F02 TRƯỚC khi vá',
            test_blocks(out, '21219d66d  test(security): F01 SQLi dang nhap + F02 Poison Null Byte /ftp (dang do)'))
 

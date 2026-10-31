@@ -43,28 +43,38 @@ def save_log(evid_id, display, argv, text, rc, tool=None):
 def trivy_fig():
     argv = TRIVY + ['image', '-q', '--no-progress', '--scanners', 'vuln', '-f', 'json', IMG]
     out, rc = sh(argv)
-    data = json.loads(out[out.find('{'):])
+    jtext = out[out.find('{'):]
+    data = json.loads(jtext)
     sev = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0, 'UNKNOWN': 0}
+    ids = set()                      # VulnerabilityID duy nhất (một CVE có thể lặp trên nhiều gói)
     cves, seen = [], set()
     for res in data.get('Results', []) or []:
         for v in res.get('Vulnerabilities', []) or []:
             s = v.get('Severity', 'UNKNOWN')
             sev[s] = sev.get(s, 0) + 1
+            ids.add(v.get('VulnerabilityID'))
             if s in ('CRITICAL', 'HIGH') and v.get('VulnerabilityID') not in seen:
                 seen.add(v['VulnerabilityID'])
                 cves.append((s, v['VulnerabilityID'], v.get('PkgName', ''), v.get('InstalledVersion', '')))
     total = sum(sev.values())
-    tbl, _ = sh(TRIVY + ['image', '--no-progress', '--scanners', 'vuln', '--severity', 'HIGH,CRITICAL', IMG])
-    save_log('trivy-image', f'trivy image {IMG}', argv, tbl, rc, tool='aquasec/trivy:latest')
+    distinct = len(ids)
+    digest, _ = sh(['docker', 'image', 'inspect', '--format', '{{.Id}}', IMG])
+    verout, _ = sh(TRIVY + ['--version'])
+    ver = next((l.strip() for l in verout.split('\n') if 'Version' in l), 'trivy')
+    # lưu JSON gốc (đúng dữ liệu dùng để đếm) làm bằng chứng kiểm toán được
+    (EVID / 'trivy-image.json').write_text(jtext, encoding='utf-8')
+    save_log('trivy-image', f'trivy image -f json {IMG}', argv,
+             jtext[:1500] + '\n...(JSON đầy đủ: report/evidence/trivy-image.json)', rc, tool=ver)
     blocks = [('cmd', f'trivy image {IMG}      # SCA - lỗ hổng dependency'),
+              ('out', f'image {digest.strip()[:26]}…   ({ver})'),
               ('out', f'Quét {len(data.get("Results", []))} target (OS Debian + package.json / node_modules)'),
-              ('note', f'Tổng: {total} CVE    CRITICAL {sev["CRITICAL"]}    HIGH {sev["HIGH"]}    '
-                       f'MEDIUM {sev["MEDIUM"]}    LOW {sev["LOW"]}'),
+              ('note', f'{total} bản ghi phát hiện ({distinct} CVE duy nhất)   '
+                       f'CRITICAL {sev["CRITICAL"]}  HIGH {sev["HIGH"]}  MEDIUM {sev["MEDIUM"]}  LOW {sev["LOW"]}'),
               ('out', 'Một số CVE CRITICAL/HIGH trong dependency:')]
-    for s, cid, pkg, ver in cves[:9]:
+    for s, cid, pkg, ver2 in cves[:8]:
         tag = '[CRIT]' if s == 'CRITICAL' else '[HIGH]'
-        blocks.append(('fail' if s == 'CRITICAL' else 'out', f'   {tag} {cid:<18} {pkg} {ver}'))
-    blocks.append(('out', '→ Semgrep/Conftest KHÔNG quét được lớp này — đây là mảng SCA bổ sung.'))
+        blocks.append(('fail' if s == 'CRITICAL' else 'out', f'   {tag} {cid:<18} {pkg} {ver2}'))
+    blocks.append(('out', '→ Lớp SCA mà Semgrep (quét mã) và Conftest (quét cấu hình) không phủ.'))
     render(SHOTS / 'trivy.png', 'Windows PowerShell — Trivy quét CVE image (SCA · pha Release)',
            blocks, evid_id='trivy-image', rc=rc)
 
@@ -74,13 +84,20 @@ def dockle_fig():
     demo.mkdir(exist_ok=True)
     (demo / 'id_rsa').write_text('-----BEGIN RSA PRIVATE KEY-----\nMIIEoFAKEdemoKeyNotReal000\n'
                                  '-----END RSA PRIVATE KEY-----\n', encoding='utf-8')
-    (demo / 'package.json').write_text('{"name":"demo","version":"1.0.0"}\n', encoding='utf-8')
-    shutil.copy(ROOT / 'Dockerfile.vulnerable', demo / 'Dockerfile')
-    sh(['docker', 'build', '-q', '-t', 'dockle-demo:vulnerable', str(demo)])
-    bad, _ = sh(DOCKLE + ['dockle-demo:vulnerable'])
+    # image JUICE SHOP bị đóng gói SAI: lấy chính image triển khai của nhóm rồi chồng các lỗi
+    # đóng gói (secret trong TỆP + trong ENV, chạy root) -> vẫn là một image Juice Shop thật,
+    # không phải image demo rời. Dockle vì thế quét ngay trên image Juice Shop.
+    (demo / 'Dockerfile').write_text(
+        f'FROM {IMG}\n'
+        'USER root\n'
+        'COPY id_rsa /juice-shop/id_rsa\n'
+        'ENV API_TOKEN=supersecret123\n', encoding='utf-8')
+    bad_img = 'juice-shop:dockle-misconfig'
+    sh(['docker', 'build', '-q', '-t', bad_img, str(demo)])
+    bad, rcb = sh(DOCKLE + [bad_img])
     good, rcg = sh(DOCKLE + [IMG])
-    save_log('dockle-bad', 'dockle dockle-demo:vulnerable', DOCKLE + ['dockle-demo:vulnerable'],
-             bad, 0, tool='goodwithtech/dockle')
+    save_log('dockle-bad', f'dockle {bad_img}', DOCKLE + [bad_img],
+             bad, rcb, tool='goodwithtech/dockle')
     save_log('dockle-good', f'dockle {IMG}', DOCKLE + [IMG], good, rcg, tool='goodwithtech/dockle')
 
     def classify(text):
@@ -98,15 +115,16 @@ def dockle_fig():
                 rows.append(('out', disp))
         return rows
 
-    blocks = [('cmd', 'dockle dockle-demo:vulnerable     # image đóng gói SAI')]
+    blocks = [('cmd', f'dockle {bad_img}     # image JUICE SHOP đóng gói SAI')]
     blocks += classify(bad)
     blocks.append(('out', ''))
-    blocks.append(('cmd', f'dockle {IMG}     # image triển khai của nhóm'))
+    blocks.append(('cmd', f'dockle {IMG}     # image JUICE SHOP triển khai của nhóm'))
     blocks += classify(good)
-    blocks.append(('ok', '→ Bắt secret BAKE vào layer (id_rsa) + ENV secret + thiếu HEALTHCHECK —'))
-    blocks.append(('ok', '  những lỗi Conftest đọc text Dockerfile KHÔNG thấy.'))
+    blocks.append(('ok', '→ Cả hai đều là image JUICE SHOP. Dockle đọc IMAGE thành phẩm: bắt secret nằm trong'))
+    blocks.append(('ok', '  TỆP bị COPY (id_rsa - dữ liệu giả lập), secret trong ENV và user hiệu lực (root).'))
+    blocks.append(('ok', '  Secret-ENV và chạy root thì CẢ Conftest lẫn Dockle đều bắt - bổ sung nhau, có phần giao.'))
     render(SHOTS / 'dockle.png', 'Windows PowerShell — Dockle quét cấu hình image theo CIS (pha Release)',
-           blocks, evid_id='dockle-bad', rc=0)
+           blocks, evid_id='dockle-bad', rc=rcb)
 
 
 def _api(path):

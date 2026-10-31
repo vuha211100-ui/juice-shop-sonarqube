@@ -1,0 +1,16 @@
+# EVIDENCE tv1-f01
+# command : python report/demos/tv1_f01_sqli.py
+# cwd     : E:\banhoaqua\juice-shop
+# time    : 2026-10-31 21:31
+# exit    : 0
+# ----- combined stdout+stderr -----
+Môi trường  Email gửi lên                    HTTP  Cấp token?  Kết luận
+----------  -------------------------------  ----  ----------  ---------------------------
+trước vá    jim@juice-sh.op (đúng mật khẩu)  200   True        đối chứng: đăng nhập hợp lệ
+trước vá    ' OR 1=1--                       200   True        LỖ HỔNG: vượt xác thực
+trước vá    admin@juice-sh.op'--             200   True        LỖ HỔNG: vượt xác thực
+trước vá    ' UNION SELECT * FROM Users--    200   True        LỖ HỔNG: vượt xác thực
+sau vá      jim@juice-sh.op (đúng mật khẩu)  200   True        đối chứng: đăng nhập hợp lệ
+sau vá      ' OR 1=1--                       401   False       an toàn: bị từ chối
+sau vá      admin@juice-sh.op'--             401   False       an toàn: bị từ chối
+sau vá      ' UNION SELECT * FROM Users--    401   False       an toàn: bị từ chối

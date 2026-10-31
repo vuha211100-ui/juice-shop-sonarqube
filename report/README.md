@@ -30,7 +30,7 @@ docker compose ps
 Rồi chạy 4 demo:
 
 ```powershell
-foreach ($d in 'tv1_f01_sqli','tv2_f02_idor','tv3_f03_metrics','tv4_f04_policy') {
+foreach ($d in 'tv1_f01_sqli','tv2_f02_pathtraversal','tv3_f03_metrics','tv4_f04_policy') {
   Write-Host "`n===== $d =====" -ForegroundColor Cyan
   python report/demos/$d.py
 }
@@ -48,7 +48,7 @@ Dừng khi xong: `docker compose down` và `docker stop juice-report-lab`.
 | Thành viên | Lỗi phụ trách | Vá / kiểm tra tại |
 |---|---|---|
 | Nguyễn Toàn Thắng — B26CHAT039 | **F01** SQL injection khi đăng nhập | `routes/login.ts` |
-| Phạm Thị Minh Thúy — B26CHAT042 | **F02** IDOR khi đọc giỏ hàng | `routes/basket.ts` |
+| Phạm Thị Minh Thúy — B26CHAT042 | **F02** Poison Null Byte (lộ tệp sao lưu) | `routes/fileServer.ts` |
 | Đỗ Đức Quốc Anh — B26CHAT001 | **F03** lộ endpoint `/metrics` không xác thực | `docker-compose.yml`, `deploy/nginx.conf`, `policy/compose.rego` |
 | Hồ Anh Vũ — B26CHAT048 | **F04** sai cấu hình container (Policy as Code) | `policy/docker_security.rego` |
 
@@ -149,7 +149,7 @@ Lần đầu Docker **tự tải** các image: `bkimminich/juice-shop:v20.2.0`, 
 ## 6. Chạy cả 4 demo (một lệnh)
 
 ```powershell
-foreach ($d in 'tv1_f01_sqli','tv2_f02_idor','tv3_f03_metrics','tv4_f04_policy') {
+foreach ($d in 'tv1_f01_sqli','tv2_f02_pathtraversal','tv3_f03_metrics','tv4_f04_policy') {
   Write-Host "`n===== $d =====" -ForegroundColor Cyan
   python report/demos/$d.py
 }
@@ -164,9 +164,9 @@ Hoặc chạy từng cái: `python report/demos/tv1_f01_sqli.py` …
 | Demo | Trước vá | Sau vá |
 |---|---|---|
 | **tv1 — F01 SQLi** | payload `' OR 1=1--` được cấp token quản trị | mọi payload bị **401** |
-| **tv2 — F02 IDOR** | tài khoản A đọc được giỏ của B | A đọc giỏ B nhận **404**, giỏ mình vẫn 200 |
+| **tv2 — F02 Poison Null Byte** | đọc được `package.json.bak`, `coupons_2013.md.bak` | payload null byte nhận **403**, tệp `.md` hợp lệ vẫn tải |
 | **tv3 — F03 /metrics** | `3100/metrics` → **200**, lộ số liệu | `3102/metrics` → **404**, cổng `3101` **refused**; giám sát nội bộ vẫn đọc được |
-| **tv4 — F04 policy** | `Dockerfile.vulnerable` bị chặn **4 nhóm luật** | bản vá, hotfix và **Dockerfile gốc đều đạt chính sách**; `conftest verify` = **17/17** |
+| **tv4 — F04 policy** | `Dockerfile.vulnerable` bị chặn **4 nhóm luật** (6 vi phạm) | bản vá, hotfix và **Dockerfile gốc đều đạt chính sách**; `conftest verify` = **19/19** |
 
 ---
 
@@ -176,7 +176,7 @@ Lệnh chi tiết cho từng cổng (Semgrep SAST, Gitleaks, node:test đỏ→x
 
 - **SAST (Semgrep)** chỉ ra dòng lỗi F01/F02.
 - **node:test** chạy app thật: đỏ trước vá → xanh sau vá.
-- **Policy as Code (Conftest/OPA)**: luật Rego chặn Dockerfile/compose sai cấu hình (`conftest verify -p policy` → 17/17).
+- **Policy as Code (Conftest/OPA)**: luật Rego chặn Dockerfile/compose sai cấu hình (`conftest verify -p policy` → 19/19).
 - **Chặn phát hành** chỉ ở luật `deny` (mức FAIL); luật `warn` chỉ cảnh báo.
 
 ---
@@ -189,7 +189,7 @@ Lệnh chi tiết cho từng cổng (Semgrep SAST, Gitleaks, node:test đỏ→x
 | `DEMO.md` | Runbook đầy đủ: khởi động + chạy mọi demo + từng cổng kiểm soát |
 | `HUONG_DAN_DEMO.md` | Bản tóm tắt nhanh theo từng lỗi |
 | `PHAN_NOI.md` | Kịch bản thuyết trình + 12 câu hỏi phản biện |
-| `BaoCao_...gon.pdf` / `.docx` / `report_concise.md` | Báo cáo bản nộp (PDF 25 trang **+ Word sửa được**) và nguồn Markdown |
+| `BaoCao_...gon.pdf` / `.docx` / `report_concise.md` | Báo cáo bản nộp (PDF 28 trang **+ Word sửa được**) và nguồn Markdown |
 | `demos/` | 4 script demo `tv1`–`tv4` + `common.py` |
 | `checks/hardening.py` | Bảng cấu hình an toàn container đang chạy (ảnh `hardening.png`) |
 | `policy/` | Luật Rego kiểm tra container **runtime** (`docker inspect`) |

@@ -27,13 +27,13 @@ Mỗi demo chạy cùng một kịch bản trên cả hai môi trường và in 
 ```powershell
 # SAST (Semgrep) phát hiện F01/F02
 docker run --rm -e SEMGREP_SEND_METRICS=off -v "${PWD}:/src:ro" -v "${PWD}/report/semgrep-rules:/rules:ro" `
-  semgrep/semgrep:1.180.0 semgrep scan --metrics=off --quiet --config /rules/owasp-top-ten.yml --config /rules/nodejsscan.yml /src/routes/login.ts /src/routes/basket.ts
+  semgrep/semgrep:1.180.0 semgrep scan --metrics=off --quiet --config /rules/owasp-top-ten.yml --config /rules/nodejsscan.yml /src/routes/login.ts /src/routes/fileServer.ts
 
 # Quét secret (Gitleaks)
 docker run --rm -v "${PWD}:/repo:ro" zricethezav/gitleaks:v8.30.1 git /repo --log-opts="baf9dcea4..HEAD" --no-banner
 # baf9dcea4 = commit gốc trước khi vá; quét 14 commit F01–F04 sau nó (đừng dùng main..fix/f01-f04 — nay rỗng)
 
-# Policy as Code (Conftest/OPA) — unit test toàn bộ luật -> 17/17
+# Policy as Code (Conftest/OPA) — unit test toàn bộ luật -> 19/19
 docker run --rm -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 verify -p policy --no-color
 ```
 

@@ -122,6 +122,18 @@ GL = ['docker', 'run', '--rm', '-v', f'{ROOT.as_posix()}:/repo:ro', TOOLS['gitle
       'git', '/repo', '--log-opts=baf9dcea4..HEAD', '--no-banner']
 
 
+def hardening_fig():
+    """Compliance as Code — soi container đang chạy bằng docker inspect; lưu log gốc + render."""
+    out, rc = run('hardening', 'python report/checks/hardening.py',
+                  ['python', 'report/checks/hardening.py'], cwd=str(ROOT))
+    blocks = [('cmd', 'python report/checks/hardening.py   # docker inspect từng container (Compliance as Code)')]
+    for ln in out.split('\n'):
+        blocks.append(('ok', ln) if ln.strip().startswith('=>') else ('out', ln))
+    render(SHOTS / 'hardening.png',
+           'Windows PowerShell — Compliance as Code: soi container đang chạy (docker inspect)',
+           blocks, evid_id='hardening', rc=rc)
+
+
 def main():
     # 1) Môi trường hai pha đang chạy (thông tin, không có PASS/FAIL)
     ps, _ = run('env-compose', 'docker compose ps', ['docker', 'compose', 'ps', '--format',
@@ -163,8 +175,8 @@ def main():
     ], evid_id='conftest-verify', rc=rc)
 
     # 4) Semgrep (SAST) quét TOÀN BỘ mã chưa vá -> nhiều cảnh báo; highlight phạm vi báo cáo.
-    #    QUAN TRỌNG (R01): Semgrep = gợi ý vị trí cần rà. F01 xác nhận ở login.ts; cảnh báo tại
-    #    basket.ts là NoSQLi (CWE-943) — KHÔNG phải IDOR; IDOR xác nhận bằng test A/B (mục 5.2).
+    #    Semgrep = gợi ý vị trí cần rà. F01 xác nhận ở login.ts (express-sequelize-injection);
+    #    F02 ở fileServer.ts (express-res-sendfile, Poison Null Byte) — xác nhận thêm bằng test + demo (mục 5.2).
     print('Semgrep trên routes/ + lib/ chưa vá (~30s)...')
     vroot = pathlib.Path(tempfile.mkdtemp(prefix='vuln-'))
     arch = subprocess.run(['git', '-C', str(ROOT), 'archive', '21219d66d', 'routes', 'lib'], capture_output=True)
@@ -187,34 +199,29 @@ def main():
         elif 'rules.' in l and cur:
             files.setdefault(cur, []).append(l.rsplit('.', 1)[-1].strip())
     HI = {'routes/login.ts': 'F01 SQL injection (đăng nhập) — vượt xác thực',
-          'routes/fileServer.ts': 'F02 Poison Null Byte — đọc tệp sao lưu nhạy cảm',
-          'lib/insecurity.ts': 'MD5 không salt (CWE-327) — rủi ro còn lại, ngoài phạm vi vá'}
+          'routes/fileServer.ts': 'F02 Poison Null Byte — đọc tệp sao lưu nhạy cảm'}
     ov = [('cmd', 'semgrep scan --config owasp-top-ten.yml --config nodejsscan.yml routes/ lib/   # mã chưa vá'),
           ('out', f'{count} Code Findings trên {len(files)} tệp (CẢNH BÁO công cụ, chưa phải {count} lỗ hổng đã xác nhận) — rút gọn:')]
     for f in sorted(files, key=lambda x: (x not in HI, x)):
         rz = ', '.join(sorted(set(files[f])))[:66]
         ov.append(('hl', f'  {f:<22} {rz}   <= {HI[f]}') if f in HI else ('out', f'  {f:<22} {rz}'))
-    ov.append(('note', f'=> exit {sgrc}: semgrep scan không tự chặn (cần --error). Đây là bước PHÁT HIỆN.'))
-    ov.append(('note', '   Phạm vi báo cáo: F01 (login.ts) và F02 (fileServer.ts) đều do SAST chỉ ra;'))
-    ov.append(('note', '   MD5 (insecurity.ts) là rủi ro lưu trữ còn lại. Phân tích chi tiết ở mục 5.'))
+    ov.append(('note', f'=> exit {sgrc}: Phạm vi báo cáo: F01 (login.ts) và F02 (fileServer.ts) đều do SAST chỉ ra (mục 5).'))
     render(SHOTS / 'semgrep-overview.png', 'Windows PowerShell — Semgrep (SAST) quét toàn bộ mã nguồn chưa vá', ov,
            evid_id='semgrep-overview', rc=sgrc)
 
-    # semgrep-scan.png: ĐÚNG cảnh báo thật của ba tệp trong phạm vi (F01 + F02 + MD5), kèm phân loại của nhóm
+    # semgrep-scan.png: ĐÚNG cảnh báo thật của hai tệp trong phạm vi (F01 + F02), kèm phân loại của nhóm
     def rules_of(fn):
         return ', '.join(sorted(set(files.get(fn, [])))) or '(không có)'
     render(SHOTS / 'semgrep-scan.png', 'Windows PowerShell — Semgrep: điểm trong phạm vi báo cáo', [
-        ('cmd', 'semgrep ... routes/login.ts routes/fileServer.ts lib/insecurity.ts   # trích từ lần quét trên'),
+        ('cmd', 'semgrep ... routes/login.ts routes/fileServer.ts   # trích từ lần quét trên'),
         ('out', 'Cảnh báo Semgrep (nguyên văn rule):'),
         ('hl', f'  routes/login.ts      {rules_of("routes/login.ts")}'),
         ('hl', f'  routes/fileServer.ts {rules_of("routes/fileServer.ts")}'),
-        ('hl', f'  lib/insecurity.ts    {rules_of("lib/insecurity.ts")}'),
         ('out', ''),
         ('note', 'Phân loại của nhóm:'),
         ('out', '  F01  login.ts       SQL injection ở đăng nhập -> vượt xác thực. Vá: truy vấn tham số.'),
         ('out', '  F02  fileServer.ts  Poison Null Byte -> đọc tệp sao lưu nhạy cảm.'),
         ('out', '                      Vá: từ chối tên file chứa null byte (403).'),
-        ('out', '  --   insecurity.ts   MD5 không salt — rủi ro lưu trữ còn lại, ngoài phạm vi vá.'),
     ], evid_id='semgrep-overview', rc=sgrc)
 
     # 5) Conftest (Policy as Code) quét Dockerfile.vulnerable -> gate chặn khi exit != 0 (đúng kỳ vọng)

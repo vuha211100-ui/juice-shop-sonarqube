@@ -1,0 +1,14 @@
+# EVIDENCE tv4-f04
+# command : python report/demos/tv4_f04_policy.py
+# cwd     : E:\banhoaqua\juice-shop
+# time    : 2026-10-31 21:31
+# exit    : 0
+# ----- combined stdout+stderr -----
+conftest verify -p policy  ->  19 tests, 19 passed, 0 warnings, 0 failures, 0 exceptions, 0 skipped
+
+Dockerfile                                  Exit  Nhóm luật bị chặn                                               Kết luận
+------------------------------------------  ----  --------------------------------------------------------------  --------------------
+Dockerfile.vulnerable (6 vi phạm / 4 nhóm)  1     ATTACK-SURFACE, LEAST-PRIVILEGE, SECRET-IN-IMAGE, SUPPLY-CHAIN  đúng: gate chặn
+Dockerfile.remediated (bản vá)              0     -                                                               đúng: đạt chính sách
+Dockerfile gốc Juice Shop (distroless)      0     -                                                               đúng: đạt chính sách
+hotfix image F01/F02                        0     -                                                               đúng: đạt chính sách

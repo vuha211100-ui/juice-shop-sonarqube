@@ -87,7 +87,7 @@ docker run --rm -e SEMGREP_SEND_METRICS=off `
   -v "${PWD}:/src:ro" -v "${PWD}/report/semgrep-rules:/rules:ro" `
   semgrep/semgrep:1.180.0 semgrep scan --metrics=off --quiet `
   --config /rules/owasp-top-ten.yml --config /rules/nodejsscan.yml `
-  /src/routes/login.ts /src/routes/basket.ts
+  /src/routes/login.ts /src/routes/fileServer.ts
 ```
 
 ### 4.2. Kiểm thử bảo mật — node:test (đỏ trước vá → xanh sau vá)
@@ -118,7 +118,7 @@ docker run --rm -v "${PWD}:/repo:ro" `
 ```powershell
 $CF = 'docker run --rm -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1'
 
-# Unit test toàn bộ policy (Dockerfile F04 + compose F03) -> 17/17
+# Unit test toàn bộ policy (Dockerfile F04 + compose F03) -> 19/19
 Invoke-Expression "$CF verify -p policy --no-color"
 
 # F04 — chính sách Dockerfile: bản lỗi bị chặn, bản vá và Dockerfile gốc đạt

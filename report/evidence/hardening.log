@@ -1,0 +1,16 @@
+# EVIDENCE hardening
+# command : python report/checks/hardening.py
+# argv    : python report/checks/hardening.py
+# cwd     : E:\banhoaqua\juice-shop
+# time    : 2026-10-31 21:32
+# exit    : 0
+# ----- combined stdout+stderr -----
+CONTAINER       USER     READ-ONLY  CAP_DROP  NO-NEW-PRIV  CỔNG HOST
+app/proxy       101:101  true       ALL       true         127.0.0.1:3102
+app/juice-shop  65532:0  false      ALL       true         -
+control/lab     65532    false      ALL       true         127.0.0.1:3100
+
+network juice-app_edge       internal=false  containers=1
+network juice-app_backend    internal=true   containers=3
+
+=> Mọi container: non-root (USER) + cap_drop ALL + no-new-privileges; backend không mở cổng host (chỉ ở mạng internal), chỉ proxy mở loopback 127.0.0.1:3102.

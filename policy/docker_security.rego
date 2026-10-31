@@ -4,10 +4,7 @@
 #   Firewall/RBAC    -> cổng quản trị/DB không được EXPOSE (giảm bề mặt tấn công)
 #   Supply chain     -> metadata nguồn gốc (nhãn OCI source+revision; hỗ trợ truy vết, CHƯA đánh giá đạt SLSA) + không :latest, không ADD, cảnh báo base chưa ghim digest
 #   Secret hygiene   -> KHÔNG nhúng bí mật (ENV/ARG) vào image (cải tiến của nhóm, ngoài bản mẫu lab)
-# Mỗi thông báo vi phạm trích sẵn điều khoản chuẩn áp dụng — quốc tế (CIS Docker, PCI-DSS, NIST, OCI/SLSA)
-# và Việt Nam (Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15 Điều 3 — nguyên tắc bảo mật, an toàn; Nghị định
-# 356/2025/NĐ-CP quy định chi tiết, hiệu lực 01/01/2026 thay Nghị định 13/2023; Luật An toàn thông tin mạng
-# 2015 Điều 19 — biện pháp kỹ thuật bảo đảm an toàn thông tin cá nhân, tuân thủ tiêu chuẩn kỹ thuật).
+# Mỗi thông báo vi phạm trích sẵn điều khoản chuẩn quốc tế áp dụng (CIS Docker, PCI-DSS, NIST, OCI/SLSA).
 #   chạy: conftest test <Dockerfile> -p policy/ --namespace dockerfile
 package dockerfile
 
@@ -32,12 +29,12 @@ last_user := final_users[count(final_users) - 1] if count(final_users) > 0
 # LEAST-PRIVILEGE ------------------------------------------------------------
 deny contains msg if {
 	count(final_users) == 0
-	msg := "LEAST-PRIVILEGE: final stage has no explicit USER; policy requires an explicit non-root USER (otherwise the container may run as root). (CIS Docker 4.1; PCI-DSS 2.2; NIST SP 800-190; Luật 91/2025/QH15 Đ.3; Luật ATTTM 2015 Đ.19)"
+	msg := "LEAST-PRIVILEGE: final stage has no explicit USER; policy requires an explicit non-root USER (otherwise the container may run as root). (CIS Docker 4.1; PCI-DSS 2.2; NIST SP 800-190)"
 }
 
 deny contains msg if {
 	uid_of(last_user) in {"root", "0"}
-	msg := sprintf("LEAST-PRIVILEGE: final USER '%s' runs as root (UID 0), regardless of group. (CIS Docker 4.1; PCI-DSS 2.2; NĐ 356/2025/NĐ-CP; Luật 91/2025/QH15 Đ.3)", [last_user])
+	msg := sprintf("LEAST-PRIVILEGE: final USER '%s' runs as root (UID 0), regardless of group. (CIS Docker 4.1; PCI-DSS 2.2)", [last_user])
 }
 
 warn contains msg if {
@@ -55,7 +52,7 @@ deny contains msg if {
 	ins.Cmd == "expose"
 	some raw in ins.Value
 	port_number(raw) in forbidden_ports
-	msg := sprintf("ATTACK-SURFACE: EXPOSE '%s' covers administrative/database port %s. (CIS Docker 5.8; NIST SP 800-190; Luật ATTTM 2015 Đ.19)", [raw, port_number(raw)])
+	msg := sprintf("ATTACK-SURFACE: EXPOSE '%s' covers administrative/database port %s. (CIS Docker 5.8; NIST SP 800-190)", [raw, port_number(raw)])
 }
 
 # SUPPLY-CHAIN — provenance khai báo (traceability; không thay cho chữ ký/attestation) --
@@ -103,7 +100,7 @@ deny contains msg if {
 	i + 1 < count(ins.Value)
 	regex.match(secret_key, key)
 	ins.Value[i + 1] != ""
-	msg := sprintf("SECRET-IN-IMAGE: ENV '%s' hardcodes a credential into the image (exposed via docker history); use build secrets/runtime env. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 356/2025/NĐ-CP; Luật 91/2025/QH15 Đ.3)", [key])
+	msg := sprintf("SECRET-IN-IMAGE: ENV '%s' hardcodes a credential into the image (exposed via docker history); use build secrets/runtime env. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1)", [key])
 }
 
 deny contains msg if {
@@ -113,5 +110,5 @@ deny contains msg if {
 	contains(tok, "=")
 	regex.match(secret_key, split(tok, "=")[0])
 	split(tok, "=")[1] != ""
-	msg := sprintf("SECRET-IN-IMAGE: ARG '%s' bakes a credential default into the image. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 356/2025/NĐ-CP; Luật 91/2025/QH15 Đ.3)", [split(tok, "=")[0]])
+	msg := sprintf("SECRET-IN-IMAGE: ARG '%s' bakes a credential default into the image. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1)", [split(tok, "=")[0]])
 }

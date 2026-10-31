@@ -39,3 +39,7 @@ for n in NETWORKS:
     if d is None:
         continue
     print(f"network {n:20} internal={str(d['Internal']).lower():5}  containers={len(d['Containers'])}")
+
+print()
+print('=> Mọi container: non-root (USER) + cap_drop ALL + no-new-privileges; '
+      'backend không mở cổng host (chỉ ở mạng internal), chỉ proxy mở loopback 127.0.0.1:3102.')

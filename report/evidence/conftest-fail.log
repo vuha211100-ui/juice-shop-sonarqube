@@ -2,15 +2,15 @@
 # command : conftest test Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile
 # argv    : docker run --rm -v E:/banhoaqua/juice-shop:/work:ro -w /work openpolicyagent/conftest:v0.71.1 test Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile --no-color
 # cwd     : E:\banhoaqua\juice-shop
-# time    : 2026-10-29 01:55
+# time    : 2026-10-31 17:34
 # tool    : openpolicyagent/conftest:v0.71.1
 # exit    : 1
 # ----- combined stdout+stderr -----
 WARN - Dockerfile.vulnerable - dockerfile - SUPPLY-CHAIN: base image 'node:22-alpine' is not pinned by digest (digest pin khác với Content Trust/CIS 4.5). (CIS Docker Benchmark §4; NIST SSDF)
-FAIL - Dockerfile.vulnerable - dockerfile - ATTACK-SURFACE: EXPOSE '22' covers administrative/database port 22. (CIS Docker 5.8; NIST SP 800-190; Luật ATTTM 2015 Đ.19)
-FAIL - Dockerfile.vulnerable - dockerfile - ATTACK-SURFACE: EXPOSE '3306' covers administrative/database port 3306. (CIS Docker 5.8; NIST SP 800-190; Luật ATTTM 2015 Đ.19)
-FAIL - Dockerfile.vulnerable - dockerfile - LEAST-PRIVILEGE: final stage has no explicit USER; policy requires an explicit non-root USER (otherwise the container may run as root). (CIS Docker 4.1; PCI-DSS 2.2; NIST SP 800-190; Luật 91/2025/QH15 Đ.3; Luật ATTTM 2015 Đ.19)
-FAIL - Dockerfile.vulnerable - dockerfile - SECRET-IN-IMAGE: ENV 'API_TOKEN' hardcodes a credential into the image (exposed via docker history); use build secrets/runtime env. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1; NĐ 356/2025/NĐ-CP; Luật 91/2025/QH15 Đ.3)
+FAIL - Dockerfile.vulnerable - dockerfile - ATTACK-SURFACE: EXPOSE '22' covers administrative/database port 22. (CIS Docker 5.8; NIST SP 800-190)
+FAIL - Dockerfile.vulnerable - dockerfile - ATTACK-SURFACE: EXPOSE '3306' covers administrative/database port 3306. (CIS Docker 5.8; NIST SP 800-190)
+FAIL - Dockerfile.vulnerable - dockerfile - LEAST-PRIVILEGE: final stage has no explicit USER; policy requires an explicit non-root USER (otherwise the container may run as root). (CIS Docker 4.1; PCI-DSS 2.2; NIST SP 800-190)
+FAIL - Dockerfile.vulnerable - dockerfile - SECRET-IN-IMAGE: ENV 'API_TOKEN' hardcodes a credential into the image (exposed via docker history); use build secrets/runtime env. (CIS Docker 4.10; GDPR Art.32; PCI-DSS 8.2.1)
 FAIL - Dockerfile.vulnerable - dockerfile - SUPPLY-CHAIN: missing provenance label 'org.opencontainers.image.revision' (metadata nguồn gốc hỗ trợ truy vết; chưa đánh giá đạt mức SLSA). (OCI image-spec; NIST SSDF)
 FAIL - Dockerfile.vulnerable - dockerfile - SUPPLY-CHAIN: missing provenance label 'org.opencontainers.image.source' (metadata nguồn gốc hỗ trợ truy vết; chưa đánh giá đạt mức SLSA). (OCI image-spec; NIST SSDF)
 
