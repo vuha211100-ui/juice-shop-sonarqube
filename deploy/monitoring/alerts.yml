@@ -1,0 +1,12 @@
+# Luật cảnh báo an toàn vận hành: tăng đột biến phản hồi 4XX = dấu hiệu dò mật khẩu (F01),
+# null-byte (F02) hoặc bị rate-limit (F03). Giám sát ở pha Operate.
+groups:
+  - name: juice-shop-security
+    rules:
+      - alert: HighClientErrorRate
+        expr: sum(increase(http_requests_count{status_code="4XX"}[2m])) > 20
+        for: 0m
+        labels: { severity: warning }
+        annotations:
+          summary: "Tăng đột biến phản hồi 4XX (nghi dò đăng nhập/null-byte/rate-limit)"
+          description: "Số phản hồi 4XX trong 2 phút vượt ngưỡng 20 — dấu hiệu tấn công vào F01/F02/F03."

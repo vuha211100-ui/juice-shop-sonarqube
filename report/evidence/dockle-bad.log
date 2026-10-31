@@ -1,0 +1,19 @@
+# EVIDENCE dockle-bad
+# command : dockle dockle-demo:vulnerable
+# argv    : docker run --rm -v /var/run/docker.sock:/var/run/docker.sock goodwithtech/dockle:latest --no-color dockle-demo:vulnerable
+# time    : 2026-10-31 16:46
+# tool    : goodwithtech/dockle
+# exit    : 0
+# ----- combined stdout+stderr -----
+FATAL	- CIS-DI-0010: Do not store credential in environment variables/files
+	* Suspicious filename found : juice-shop/id_rsa (You can suppress it with "-af id_rsa")
+	* Suspicious ENV key found : API_TOKEN on ENV API_TOKEN=******* (You can suppress it with --accept-key)
+WARN	- CIS-DI-0001: Create a user for the container
+	* Last user should not be root
+INFO	- CIS-DI-0005: Enable Content trust for Docker
+	* export DOCKER_CONTENT_TRUST=1 before docker pull/build
+INFO	- CIS-DI-0006: Add HEALTHCHECK instruction to the container image
+	* not found HEALTHCHECK statement
+INFO	- DKL-LI-0003: Only put necessary files
+	* unnecessary file : juice-shop/Dockerfile 
+	* Suspicious directory : root/.npm 

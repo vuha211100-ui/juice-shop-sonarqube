@@ -1,0 +1,35 @@
+name: juice-monitoring
+# Giám sát nhẹ pha Operate: Prometheus scrape /metrics nội bộ, Grafana làm portal dashboard.
+# Gắn vào mạng backend của juice-app (external) để tới /metrics mà không mở cổng host của app.
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports: ["127.0.0.1:9090:9090"]
+    networks: [backend, mon]
+    logging: *logging
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_USERS_DEFAULT_THEME: "light"
+    volumes:
+      - ./deploy/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["127.0.0.1:3103:3000"]
+    networks: [mon]
+    depends_on: [prometheus]
+    logging: *logging
+networks:
+  backend:
+    external: true
+    name: juice-app_backend
+  mon: {}

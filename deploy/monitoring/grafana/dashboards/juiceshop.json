@@ -1,0 +1,28 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "panels": [
+    { "id": 1, "type": "stat", "title": "Người dùng đã đăng ký",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "juiceshop_users_registered_total", "datasource": { "type": "prometheus", "uid": "prometheus" } } ] },
+    { "id": 2, "type": "stat", "title": "Đơn hàng đã đặt",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "juiceshop_orders_placed_total", "datasource": { "type": "prometheus", "uid": "prometheus" } } ] },
+    { "id": 3, "type": "timeseries", "title": "HTTP requests theo status_code",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (status_code) (http_requests_count)", "legendFormat": "{{status_code}}", "datasource": { "type": "prometheus", "uid": "prometheus" } } ] },
+    { "id": 4, "type": "timeseries", "title": "RAM tiến trình (bytes)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "process_resident_memory_bytes", "datasource": { "type": "prometheus", "uid": "prometheus" } } ] }
+  ],
+  "schemaVersion": 39,
+  "tags": ["juice-shop"],
+  "time": { "from": "now-15m", "to": "now" },
+  "refresh": "10s",
+  "title": "Juice Shop — Giám sát vận hành",
+  "uid": "juiceshop-ops"
+}

@@ -1,0 +1,14 @@
+# EVIDENCE dockle-good
+# command : dockle juice-shop:hotfix-f01-f02
+# argv    : docker run --rm -v /var/run/docker.sock:/var/run/docker.sock goodwithtech/dockle:latest --no-color juice-shop:hotfix-f01-f02
+# time    : 2026-10-31 16:46
+# tool    : goodwithtech/dockle
+# exit    : 0
+# ----- combined stdout+stderr -----
+SKIP	- DKL-LI-0001: Avoid empty password
+	* failed to detect etc/shadow,etc/master.passwd
+INFO	- CIS-DI-0005: Enable Content trust for Docker
+	* export DOCKER_CONTENT_TRUST=1 before docker pull/build
+INFO	- DKL-LI-0003: Only put necessary files
+	* unnecessary file : juice-shop/infrastructure/docker-compose.yml 
+	* unnecessary file : juice-shop/infrastructure/Dockerfile 

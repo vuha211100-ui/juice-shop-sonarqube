@@ -5,6 +5,7 @@ order_*.pdf
 # Report build intermediates
 __pycache__/
 report/*.np.pdf
+_dockle_demo/
 app/
 !frontend/src/app
 uploads/complaints/*.*

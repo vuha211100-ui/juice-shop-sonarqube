@@ -1,0 +1,21 @@
+# EVIDENCE monitoring
+# command : Prometheus API: targets / query / alerts
+# argv    : curl http://127.0.0.1:9090/api/v1/{targets,query,alerts}
+# time    : 2026-10-31 16:48
+# exit    : 0
+# ----- combined stdout+stderr -----
+{
+  "targets": [
+    [
+      "http://juice-app-juice-shop-1:3000/metrics",
+      "up"
+    ]
+  ],
+  "users": "23",
+  "alerts": [
+    [
+      "HighClientErrorRate",
+      "firing"
+    ]
+  ]
+}
