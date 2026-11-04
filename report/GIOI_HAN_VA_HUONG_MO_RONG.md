@@ -14,6 +14,7 @@ Tài liệu đi kèm báo cáo chính (`report_concise.md`). Báo cáo chính t�
 - **F02 (Poison Null Byte):** mới kiểm chứng với 2 payload null byte; chưa quét toàn bộ biến thể chuẩn hóa đường dẫn hay toàn bộ chính sách công bố tệp. Thực nghiệm chỉ chứng minh đọc được tệp *bên trong* thư mục `ftp/`, không truy cập ra ngoài thư mục này.
 - **F03 (`/metrics`):** các chỉ số là số liệu tổng hợp vận hành, chưa phải dữ liệu cá nhân định danh; phạm vi kiểm chứng là *truy cập từ host*. Giám sát backend chỉ quan sát phản hồi **hoàn tất tại backend**; yêu cầu bị Nginx chặn ngay tại proxy (429 rate-limit, 404 cho `/metrics`) không tới backend nên không vào metric này.
 - **F04 (cấu hình container):** bộ luật chỉ chứng minh cấu hình đạt *các luật đã định nghĩa*, **không** đồng nghĩa đạt toàn bộ CIS Docker Benchmark. Nhãn nguồn gốc OCI tự khai chỉ dùng để *tham chiếu* SLSA, chưa đánh giá đạt mức.
+- **Conftest khác Dockle thế nào (F04):** **Conftest** kiểm *công thức* (văn bản Dockerfile) **trước build**, còn **Dockle** kiểm *thành phẩm* (image) **sau build**. Hai công cụ **giao nhau** ở secret trong `ENV` và chạy root — cả hai đều bắt; phần **riêng** của Dockle là secret nằm trong *tệp* bị COPY vào layer (`id_rsa` — dữ liệu giả lập) và các thuộc tính chỉ lộ ở *image thành phẩm*. Vì vậy hai lớp bổ trợ nhau chứ không trùng lặp.
 
 ## 3. Quy trình
 

@@ -1,40 +1,42 @@
 # EVIDENCE f0102-red-test
 # command : node --import ./test/api/helpers/test-env.mjs --import tsx --test test/api/security/f01-f02.test.ts   # baseline login.ts + fileServer.ts
 # cwd     : E:\banhoaqua\juice-shop
-# time    : 2026-10-31 21:31
+# time    : 2026-11-04 18:01
 # exit    : 1
 # ----- combined stdout+stderr -----
 ▶ F01 — đăng nhập không bị SQL injection
-  ✔ đăng nhập đúng email và mật khẩu vẫn trả token (65.4608ms)
-  ✖ payload "' OR 1=1--" với mật khẩu sai bị từ chối (401) (27.0113ms)
-  ✖ payload "admin@juice-sh.op'--" với mật khẩu sai bị từ chối (401) (27.3575ms)
-  ✖ payload "' UNION SELECT * FROM Users--" với mật khẩu sai bị từ chối (401) (23.8ms)
-  ✔ payload "';" với mật khẩu sai bị từ chối (401) (15.2819ms)
-  ✔ email không phải chuỗi bị từ chối (401) (18.0686ms)
-✖ F01 — đăng nhập không bị SQL injection (991.3853ms)
+  ✔ đăng nhập đúng email và mật khẩu vẫn trả token (60.17ms)
+  ✖ payload "' OR 1=1--" với mật khẩu sai bị từ chối (401) (25.8242ms)
+  ✖ payload "admin@juice-sh.op'--" với mật khẩu sai bị từ chối (401) (21.9455ms)
+  ✖ payload "' UNION SELECT * FROM Users--" với mật khẩu sai bị từ chối (401) (21.6093ms)
+  ✖ payload "' OR '1'='1'--" với mật khẩu sai bị từ chối (401) (24.2582ms)
+  ✖ payload "bender@juice-sh.op'--" với mật khẩu sai bị từ chối (401) (29.1179ms)
+  ✔ payload "';" với mật khẩu sai bị từ chối (401) (18.3915ms)
+  ✔ email không phải chuỗi bị từ chối (401) (28.3141ms)
+✖ F01 — đăng nhập không bị SQL injection (940.7812ms)
 ▶ F02 — tải tệp tĩnh không bị path traversal qua poison null byte
-  ✔ tệp .md hợp lệ vẫn tải được (200) (8.2202ms)
-  ✖ poison null byte không vượt allowlist để đọc package.json.bak (403) (12.3506ms)
-  ✖ poison null byte không đọc được bản sao lưu coupon (403) (16.3172ms)
-✖ F02 — tải tệp tĩnh không bị path traversal qua poison null byte (37.3724ms)
-ℹ tests 9
+  ✔ tệp .md hợp lệ vẫn tải được (200) (7.9113ms)
+  ✖ poison null byte không vượt allowlist để đọc package.json.bak (403) (11.7586ms)
+  ✖ poison null byte không đọc được bản sao lưu coupon (403) (7.2069ms)
+✖ F02 — tải tệp tĩnh không bị path traversal qua poison null byte (27.3822ms)
+ℹ tests 11
 ℹ suites 2
 ℹ pass 4
-ℹ fail 5
+ℹ fail 7
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 3737.0091
+ℹ duration_ms 3708.4036
 
 ✖ failing tests:
 
-test at test\api\security\f01-f02.test.ts:2:1854
-✖ payload "' OR 1=1--" với mật khẩu sai bị từ chối (401) (27.0113ms)
+test at test\api\security\f01-f02.test.ts:2:1895
+✖ payload "' OR 1=1--" với mật khẩu sai bị từ chối (401) (25.8242ms)
   AssertionError [ERR_ASSERTION]: chuỗi nhập vào đã thay đổi câu SQL
   
   200 !== 401
   
-      at TestContext.<anonymous> (E:\banhoaqua\juice-shop\test\api\security\f01-f02.test.ts:31:14)
+      at TestContext.<anonymous> (E:\banhoaqua\juice-shop\test\api\security\f01-f02.test.ts:32:14)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1313:7)
       at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
@@ -46,13 +48,13 @@ test at test\api\security\f01-f02.test.ts:2:1854
     diff: 'simple'
   }
 
-test at test\api\security\f01-f02.test.ts:2:1854
-✖ payload "admin@juice-sh.op'--" với mật khẩu sai bị từ chối (401) (27.3575ms)
+test at test\api\security\f01-f02.test.ts:2:1895
+✖ payload "admin@juice-sh.op'--" với mật khẩu sai bị từ chối (401) (21.9455ms)
   AssertionError [ERR_ASSERTION]: chuỗi nhập vào đã thay đổi câu SQL
   
   200 !== 401
   
-      at TestContext.<anonymous> (E:\banhoaqua\juice-shop\test\api\security\f01-f02.test.ts:31:14)
+      at TestContext.<anonymous> (E:\banhoaqua\juice-shop\test\api\security\f01-f02.test.ts:32:14)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1313:7)
       at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
@@ -64,13 +66,13 @@ test at test\api\security\f01-f02.test.ts:2:1854
     diff: 'simple'
   }
 
-test at test\api\security\f01-f02.test.ts:2:1854
-✖ payload "' UNION SELECT * FROM Users--" với mật khẩu sai bị từ chối (401) (23.8ms)
+test at test\api\security\f01-f02.test.ts:2:1895
+✖ payload "' UNION SELECT * FROM Users--" với mật khẩu sai bị từ chối (401) (21.6093ms)
   AssertionError [ERR_ASSERTION]: chuỗi nhập vào đã thay đổi câu SQL
   
   200 !== 401
   
-      at TestContext.<anonymous> (E:\banhoaqua\juice-shop\test\api\security\f01-f02.test.ts:31:14)
+      at TestContext.<anonymous> (E:\banhoaqua\juice-shop\test\api\security\f01-f02.test.ts:32:14)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1313:7)
       at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
@@ -82,13 +84,49 @@ test at test\api\security\f01-f02.test.ts:2:1854
     diff: 'simple'
   }
 
-test at test\api\security\f01-f02.test.ts:2:2818
-✖ poison null byte không vượt allowlist để đọc package.json.bak (403) (12.3506ms)
+test at test\api\security\f01-f02.test.ts:2:1895
+✖ payload "' OR '1'='1'--" với mật khẩu sai bị từ chối (401) (24.2582ms)
+  AssertionError [ERR_ASSERTION]: chuỗi nhập vào đã thay đổi câu SQL
+  
+  200 !== 401
+  
+      at TestContext.<anonymous> (E:\banhoaqua\juice-shop\test\api\security\f01-f02.test.ts:32:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 401,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\api\security\f01-f02.test.ts:2:1895
+✖ payload "bender@juice-sh.op'--" với mật khẩu sai bị từ chối (401) (29.1179ms)
+  AssertionError [ERR_ASSERTION]: chuỗi nhập vào đã thay đổi câu SQL
+  
+  200 !== 401
+  
+      at TestContext.<anonymous> (E:\banhoaqua\juice-shop\test\api\security\f01-f02.test.ts:32:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 401,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\api\security\f01-f02.test.ts:2:2859
+✖ poison null byte không vượt allowlist để đọc package.json.bak (403) (11.7586ms)
   AssertionError [ERR_ASSERTION]: path traversal: đọc được tệp đuôi bị cấm
   
   200 !== 403
   
-      at TestContext.<anonymous> (E:\banhoaqua\juice-shop\test\api\security\f01-f02.test.ts:50:12)
+      at TestContext.<anonymous> (E:\banhoaqua\juice-shop\test\api\security\f01-f02.test.ts:51:12)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1313:7)
       at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {
@@ -100,13 +138,13 @@ test at test\api\security\f01-f02.test.ts:2:2818
     diff: 'simple'
   }
 
-test at test\api\security\f01-f02.test.ts:2:3294
-✖ poison null byte không đọc được bản sao lưu coupon (403) (16.3172ms)
+test at test\api\security\f01-f02.test.ts:2:3335
+✖ poison null byte không đọc được bản sao lưu coupon (403) (7.2069ms)
   AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
   
   200 !== 403
   
-      at TestContext.<anonymous> (E:\banhoaqua\juice-shop\test\api\security\f01-f02.test.ts:56:12)
+      at TestContext.<anonymous> (E:\banhoaqua\juice-shop\test\api\security\f01-f02.test.ts:57:12)
       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async Test.run (node:internal/test_runner/test:1313:7)
       at async Suite.processPendingSubtests (node:internal/test_runner/test:897:7) {

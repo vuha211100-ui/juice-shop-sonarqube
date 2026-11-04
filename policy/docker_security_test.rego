@@ -1,4 +1,4 @@
-# 13 unit test cho docker_security.rego — bám theo lab ConfTest (mục "unit tests covering the bypasses"),
+# 13 unit test cho docker_security.rego — bao phủ các kiểu lách (bypass) đã biết,
 # bổ sung ca root kèm group (USER 0:1000 / root:1000) để bịt lỗ tách UID.
 # chạy: conftest verify -p policy/
 package dockerfile
@@ -44,7 +44,7 @@ test_root_name_with_group_denied if {
 	contains(m, "runs as root")
 }
 
-# USER ở stage builder KHÔNG áp dụng cho stage cuối -> vẫn phải bị chặn (bypass chính của lab)
+# USER ở stage builder KHÔNG áp dụng cho stage cuối -> vẫn phải bị chặn (bypass điển hình)
 test_builder_user_does_not_cover_final if {
 	some m in deny with input as [
 		{"Stage": 0, "Cmd": "from", "Value": ["node:24"]},
@@ -74,7 +74,7 @@ test_add_instruction_denied if {
 	contains(m, "use COPY instead of ADD")
 }
 
-# SECRET-IN-IMAGE (cải tiến của nhóm ngoài bản mẫu lab)
+# SECRET-IN-IMAGE (luật riêng của nhóm)
 test_secret_env_denied if {
 	some m in deny with input as [{"Stage": 0, "Cmd": "env", "Value": ["API_TOKEN", "abc123", "="]}]
 	contains(m, "SECRET-IN-IMAGE")

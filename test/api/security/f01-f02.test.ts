@@ -25,7 +25,8 @@ void describe('F01 — đăng nhập không bị SQL injection', () => {
     assert.equal(typeof res.body.authentication.token, 'string')
   })
 
-  for (const payload of ["' OR 1=1--", "admin@juice-sh.op'--", "' UNION SELECT * FROM Users--", "';"]) {
+  for (const payload of ["' OR 1=1--", "admin@juice-sh.op'--", "' UNION SELECT * FROM Users--",
+    "' OR '1'='1'--", "bender@juice-sh.op'--", "';"]) {
     void it(`payload ${JSON.stringify(payload)} với mật khẩu sai bị từ chối (401)`, async () => {
       const res = await post(payload, 'wrong-password')
       assert.equal(res.status, 401, 'chuỗi nhập vào đã thay đổi câu SQL')

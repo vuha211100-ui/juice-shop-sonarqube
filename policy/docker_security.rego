@@ -1,16 +1,16 @@
-# Policy as Code cho Dockerfile của Juice Shop — theo mô hình "Policy as Code with Conftest".
+# Policy as Code cho Dockerfile của Juice Shop.
 # Mỗi luật đặt tại điểm thực thi đúng thay vì các "original check" dễ bị qua mặt:
 #   Least privilege  -> USER ở STAGE CUỐI, UID số, không phải root (thay vì "có USER bất kỳ trong file")
 #   Firewall/RBAC    -> cổng quản trị/DB không được EXPOSE (giảm bề mặt tấn công)
 #   Supply chain     -> metadata nguồn gốc (nhãn OCI source+revision; hỗ trợ truy vết, CHƯA đánh giá đạt SLSA) + không :latest, không ADD, cảnh báo base chưa ghim digest
-#   Secret hygiene   -> KHÔNG nhúng bí mật (ENV/ARG) vào image (cải tiến của nhóm, ngoài bản mẫu lab)
+#   Secret hygiene   -> KHÔNG nhúng bí mật (ENV/ARG) vào image (luật riêng của nhóm)
 # Mỗi thông báo vi phạm trích sẵn điều khoản chuẩn quốc tế áp dụng (CIS Docker, PCI-DSS, NIST, OCI/SLSA).
 #   chạy: conftest test <Dockerfile> -p policy/ --namespace dockerfile
 package dockerfile
 
 import rego.v1
 
-# Danh sách cổng quản trị/CSDL — giữ theo Appendix A.1 của lab (SSH, telnet, Docker daemon, MySQL, Postgres, Redis, Mongo).
+# Danh sách cổng quản trị/CSDL (SSH, telnet, Docker daemon, MySQL, Postgres, Redis, Mongo).
 forbidden_ports := {"22", "23", "2375", "2376", "3306", "5432", "6379", "27017"}
 
 required_labels := {"org.opencontainers.image.source", "org.opencontainers.image.revision"}
@@ -86,7 +86,7 @@ warn contains msg if {
 	msg := sprintf("SUPPLY-CHAIN: base image '%s' is not pinned by digest (digest pin khác với Content Trust/CIS 4.5). (CIS Docker Benchmark §4; NIST SSDF)", [ins.Value[0]])
 }
 
-# SECRET-IN-IMAGE — cải tiến của nhóm (ngoài bản mẫu lab) --------------------
+# SECRET-IN-IMAGE — luật riêng của nhóm -------------------------------------
 # Bí mật đặt trong ENV/ARG bị bake vào layer ảnh và lộ qua `docker history`. Ánh xạ
 # luật secret của compose (F03) xuống tầng Dockerfile. ENV parse thành [key, value, "=", ...];
 # ARG parse thành ["KEY=VALUE"].

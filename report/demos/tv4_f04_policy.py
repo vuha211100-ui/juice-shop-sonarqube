@@ -1,10 +1,10 @@
-"""TV4 — F04: Policy as Code cho container Juice Shop (bám theo lab "Policy as Code with Conftest").
+"""TV4 — F04: Policy as Code cho container Juice Shop.
 
 Vấn đề: image/triển khai của Juice Shop phải tuân thủ chính sách an toàn tối thiểu của tổ chức.
 Các "original check" ngây thơ (USER bất kỳ, EXPOSE, LABEL mfa="true"...) dễ bị qua mặt; bộ policy
 docker_security.rego đặt luật tại điểm thực thi đúng. Demo chạy Conftest trên:
   - Dockerfile.vulnerable (6 vi phạm / 4 nhóm cố ý) -> phải FAIL
-  - Dockerfile.remediated (bản vá của lab)  -> phải PASS
+  - Dockerfile.remediated (bản vá)  -> phải PASS
   - Dockerfile gốc Juice Shop (distroless)  -> đạt toàn bộ chính sách an toàn
 """
 import pathlib

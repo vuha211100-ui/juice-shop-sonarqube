@@ -5,7 +5,8 @@ Phát hiện: gửi email chứa payload SQL kèm mật khẩu SAI. Nếu máy c
 """
 from common import AFTER, BEFORE, call, table
 
-PAYLOADS = ["' OR 1=1--", "admin@juice-sh.op'--", "' UNION SELECT * FROM Users--"]
+PAYLOADS = ["' OR 1=1--", "admin@juice-sh.op'--", "' UNION SELECT * FROM Users--",
+            "' OR '1'='1'--", "bender@juice-sh.op'--"]
 rows = [('Môi trường', 'Email gửi lên', 'HTTP', 'Cấp token?', 'Kết luận')]
 for label, base in (BEFORE, AFTER):
     status, _ = call(base, 'POST', '/rest/user/login', {'email': 'jim@juice-sh.op', 'password': 'ncc-1701'})

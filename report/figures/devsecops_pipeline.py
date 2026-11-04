@@ -25,8 +25,8 @@ SAC = (37, 99, 235)         # blue-600    (Security as Code)
 SACF = (219, 234, 254)      # blue-100
 PAC = (5, 150, 105)         # emerald-600 (Policy as Code)
 PACF = (209, 250, 229)      # emerald-100
-SCAN = (217, 119, 6)        # amber-600   (Quét image)
-SCANF = (254, 243, 199)     # amber-100
+TDS = (8, 145, 178)         # cyan-600    (kiểm thử bảo mật TDS)
+TDSF = (207, 250, 254)      # cyan-100
 MON = (124, 58, 237)        # violet-600  (Giám sát vận hành)
 MONF = (237, 233, 254)      # violet-100
 WHITE = (255, 255, 255)
@@ -75,26 +75,26 @@ def arrow(draw, x0, y0, x1, y1, color, width=5, head=16):
 
 
 # ----- tiêu đề -----
-center(d, W / 2, 28, 'Quy trình DevSecOps — ánh xạ 4 lỗi và năm lớp cổng kiểm soát theo từng pha', F_TITLE, INK)
+center(d, W / 2, 28, 'Quy trình DevSecOps — ánh xạ 4 lỗi và các cổng kiểm soát theo từng pha', F_TITLE, INK)
 center(d, W / 2, 82,
-       'Security as Code (xanh dương): F01, F02  ·  Policy as Code (xanh lá): F03, F04  ·  '
-       'Quét image (cam): Release  ·  Giám sát (tím): Operate', F_SUB, MUTE)
+       'Cổng kiểm soát: phát hiện điểm yếu SAST/SCA (xanh dương)  ·  kiểm thử TDS (cyan)  ·  '
+       'Policy / Compliance as Code (xanh lá)  ·  giám sát (tím).   Thanh lỗi: F01/F02 (mã nguồn), F03/F04 (triển khai)', F_SUB, MUTE)
 
 # ----- các pha -----
 phases = ['Plan', 'Code', 'Build', 'Test', 'Release', 'Deploy', 'Operate', 'Monitor']
-# gate dưới mỗi pha + màu lớp kiểm soát của pha đó
+# gate dưới mỗi pha, kèm màu theo nhóm kiểm soát của TỪNG cổng.
+# Trivy (SCA) = Security as Code; Dockle (CIS) = Policy/Compliance as Code -> không có lớp "quét image" riêng.
+FILL = {SAC: SACF, PAC: PACF, TDS: TDSF, MON: MONF}
 gates = [
-    [],                                               # 0 Plan
-    ['Semgrep (SAST)', 'Gitleaks'],                   # 1 Code    -> SaC
-    ['Conftest · Dockerfile'],                        # 2 Build   -> PaC
-    ['node:test (đỏ->xanh)'],                         # 3 Test    -> SaC
-    ['Trivy (SCA)', 'Dockle (CIS)'],                  # 4 Release -> Quét image
-    ['Conftest · compose', 'Nginx reverse proxy'],    # 5 Deploy  -> PaC
-    ['docker inspect', '+ Conftest runtime'],         # 6 Operate -> PaC (Compliance as Code)
-    ['Prometheus + Grafana', 'cảnh báo 4XX'],         # 7 Monitor -> Giám sát
+    [],                                                            # 0 Plan
+    [('Semgrep (SAST)', SAC), ('Gitleaks', SAC)],                 # 1 Code
+    [('Conftest · Dockerfile', PAC)],                             # 2 Build
+    [('node:test (đỏ->xanh)', TDS)],                              # 3 Test (TDS)
+    [('Trivy (SCA)', SAC), ('Dockle (CIS)', PAC)],               # 4 Release
+    [('Conftest · compose', PAC), ('Nginx reverse proxy', PAC)],  # 5 Deploy
+    [('docker inspect', PAC), ('+ Conftest runtime', PAC)],       # 6 Operate (Compliance as Code)
+    [('Prometheus + Grafana', MON), ('cảnh báo 4XX', MON)],       # 7 Monitor
 ]
-GATE_COL = {1: (SAC, SACF), 2: (PAC, PACF), 3: (SAC, SACF), 4: (SCAN, SCANF),
-            5: (PAC, PACF), 6: (PAC, PACF), 7: (MON, MONF)}
 
 n = len(phases)
 BOX_W, GAP, BOX_H = 230, 22, 104
@@ -144,9 +144,9 @@ gate_bottom = GATE_TOP
 for i, gs in enumerate(gates):
     if not gs:
         continue
-    col, colf = GATE_COL[i]
     y = GATE_TOP
-    for g in gs:
+    for g, col in gs:
+        colf = FILL[col]
         tw = d.textlength(g, font=F_GATE)
         x0 = box_cx(i) - tw / 2 - 16
         x1 = box_cx(i) + tw / 2 + 16
@@ -165,9 +165,9 @@ center(d, W / 2, loop_y - 34,
        'phản hồi liên tục — mỗi cổng trả PASS/WARN/FAIL; chỉ FAIL (luật deny) mới chặn phát hành', F_SMALL, MUTE)
 
 # ----- chú giải (2 hàng × 2 mục) -----
-legend = [('Security as Code — SAST, quét secret, kiểm thử bảo mật', SAC, SACF),
-          ('Policy as Code — Rego cho Dockerfile, compose & runtime', PAC, PACF),
-          ('Quét image — Trivy (CVE/SCA), Dockle (CIS)', SCAN, SCANF),
+legend = [('Phát hiện điểm yếu (SAST/SCA) — Semgrep, Trivy, Gitleaks', SAC, SACF),
+          ('Kiểm thử bảo mật (TDS) — node:test (đỏ trước vá, xanh sau vá)', TDS, TDSF),
+          ('Policy / Compliance as Code — Conftest (Rego), Dockle (CIS), docker inspect', PAC, PACF),
           ('Giám sát vận hành — Prometheus/Grafana + cảnh báo', MON, MONF)]
 ly0 = loop_y + 50
 col_x = [left, W / 2 + 20]
