@@ -122,7 +122,7 @@ $CF = 'docker run --rm -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0
 Invoke-Expression "$CF verify -p policy --no-color"
 
 # F04 — chính sách Dockerfile: bản lỗi bị chặn, bản vá và Dockerfile gốc đạt
-Invoke-Expression "$CF test Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile --no-color"
+Invoke-Expression "$CF test report/fixtures/Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile --no-color"
 Invoke-Expression "$CF test report/fixtures/Dockerfile.remediated --parser dockerfile -p policy --namespace dockerfile --no-color"
 Invoke-Expression "$CF test Dockerfile --parser dockerfile -p policy --namespace dockerfile --no-color"
 

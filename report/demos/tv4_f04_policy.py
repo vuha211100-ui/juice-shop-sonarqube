@@ -25,7 +25,7 @@ verify = sh(*CF, 'verify', '-p', 'policy', '--no-color')
 print('conftest verify -p policy  ->  ' + next((l.strip() for l in verify.stdout.splitlines() if 'tests,' in l), '?'))
 print()
 rows = [('Dockerfile', 'Exit', 'Nhóm luật bị chặn', 'Kết luận')]
-for target, desc, bad in [('Dockerfile.vulnerable', 'Dockerfile.vulnerable (6 vi phạm / 4 nhóm)', True),
+for target, desc, bad in [('report/fixtures/Dockerfile.vulnerable', 'Dockerfile.vulnerable (6 vi phạm / 4 nhóm)', True),
                           ('report/fixtures/Dockerfile.remediated', 'Dockerfile.remediated (bản vá)', False),
                           ('Dockerfile', 'Dockerfile gốc Juice Shop (distroless)', False),
                           ('deploy/Dockerfile.hotfix', 'hotfix image F01/F02', False)]:

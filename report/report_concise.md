@@ -11,7 +11,7 @@ Table: Danh mục từ viết tắt
 | GDPR | Quy định bảo vệ dữ liệu của EU (2016/679) |
 | PCI-DSS | Chuẩn an toàn dữ liệu thẻ thanh toán |
 | CIS | Center for Internet Security (CIS Docker Benchmark) |
-| CWE / OWASP | Phân loại điểm yếu phần mềm / tổ chức an toàn ứng dụng web |
+| CWE / OWASP | Phân loại lỗ hổng phần mềm / tổ chức an toàn ứng dụng web |
 | UID | Mã định danh người dùng hệ điều hành |
 
 # 1. Giới thiệu và phạm vi
@@ -111,17 +111,17 @@ Với dữ liệu giả lập của ứng dụng huấn luyện, báo cáo dùng
 
 # 4. Quy trình DevSecOps và các cổng kiểm soát
 
-Việc phát hiện và chống tái diễn cả bốn lỗi đều được viết thành mã và chạy tự động dưới dạng một chuỗi kiểm soát (pipeline cục bộ) theo mô hình DevSecOps. Nhóm trình bày toàn bộ chuỗi này dưới một khung thống nhất **Security as Code**, trong đó **Policy as Code** (và phần mở rộng **Compliance as Code**), phát hiện điểm yếu **SAST/SCA**, **kiểm thử bảo mật (TDS)** và **giám sát vận hành** chỉ là các *kỹ thuật con* đặt ở từng pha. Hình dưới ánh xạ bốn lỗi và các cổng kiểm soát theo pha, phân theo **loại kiểm soát**: phát hiện điểm yếu **SAST/SCA** (Semgrep, Trivy — xanh dương), **kiểm thử bảo mật TDS** (node:test — cyan), **Policy / Compliance as Code** (Conftest, Dockle, docker inspect — xanh lá) và **giám sát vận hành** (Prometheus/Grafana — tím):
+Việc phát hiện và chống tái diễn các lỗi được thực hiện theo **Security as Code** — cách làm **viết mọi kiểm soát an toàn thành mã** (luật, kịch bản quét, ca kiểm thử) đặt trong kho mã và chạy **tự động như các cổng (gate)** trong pipeline CI/CD. Vì là mã nên các kiểm soát này **xem lại, lặp lại và truy vết được**, và có thể **chặn phát hành ngay khi phát hiện vi phạm** (shift-left) thay vì chỉ rà soát thủ công một lần. Hình dưới đặt các cổng kiểm soát lên vòng đời DevSecOps:
 
-!fig[devsecops-pipeline.png](Quy trình DevSecOps: ánh xạ bốn lỗi F01–F04 và các cổng kiểm soát theo pha — phát hiện điểm yếu SAST/SCA (Semgrep, Trivy), kiểm thử bảo mật TDS (node:test), Policy/Compliance as Code (Conftest, Dockle, docker inspect) và giám sát vận hành (Prometheus/Grafana)){width=16}
+!fig[devsecops-pipeline.png](Quy trình DevSecOps: ánh xạ bốn lỗi F01–F04 và các cổng kiểm soát theo pha — phát hiện lỗ hổng SAST/SCA (Semgrep, Trivy), kiểm thử bảo mật TDS (node:test), Policy/Compliance as Code (Conftest, Dockle, docker inspect) và giám sát vận hành (Prometheus/Grafana)){width=16}
 
-Các lớp kiểm soát, xếp theo **pha vòng đời** (mỗi lớp bắt loại lỗi lớp khác không thấy):
+Các nhóm kỹ thuật trong khung, xếp theo **pha vòng đời**:
 
-- **Phát hiện điểm yếu (SAST/SCA):** SAST (Semgrep) chỉ đúng dòng lỗi F01/F02; **SCA** (Trivy) quét CVE *dependency* của image; Gitleaks quét secret trong commit.
-- **Kiểm thử bảo mật (TDS):** `f01-f02.test.ts` — đỏ trước vá, xanh sau vá — chứng minh F01/F02 có thật và đã hết.
-- **Policy as Code (Build/Deploy):** luật Rego cho Dockerfile (F04) và `docker-compose` (F03), chặn ngay cấu hình mở cổng backend hoặc chạy root **trước khi triển khai** — đọc *văn bản* cấu hình.
-- **Compliance as Code (Operate):** kiểm **container đang chạy** bằng `docker inspect` + luật Rego runtime (non-root, drop capability, chỉ proxy mở loopback); **Dockle** kiểm CIS trên **image thành phẩm**.
-- **Giám sát vận hành (Operate):** **Prometheus** scrape `/metrics` nội bộ, **Grafana** dashboard, và **cảnh báo** khi có bất thường (vd đột biến 4XX do dò đăng nhập) — mục 4.3.
+- **Phát hiện lỗ hổng (SAST/SCA):** Semgrep quét tĩnh mã nguồn, Trivy quét CVE *dependency* của image, Gitleaks quét secret trong commit.
+- **Kiểm thử bảo mật (TDS):** ca kiểm thử bảo mật tự động — đỏ khi còn lỗi, xanh sau khi vá — giữ lại để chống tái diễn.
+- **Policy as Code (Build/Deploy):** luật Rego kiểm *văn bản* cấu hình (Dockerfile, `docker-compose`), chặn cấu hình không an toàn **trước khi triển khai**.
+- **Compliance as Code (Operate):** kiểm **container đang chạy** bằng `docker inspect` + luật Rego runtime, và **Dockle** kiểm CIS trên **image thành phẩm**.
+- **Giám sát vận hành (Operate):** **Prometheus** scrape `/metrics` nội bộ, **Grafana** dashboard, và **cảnh báo** khi có bất thường — mục 4.3.
 
 Toàn bộ kiểm soát được viết thành mã nên chạy lặp lại được trên **hai môi trường song song**: container đối chứng *trước vá* (`127.0.0.1:3100`) và bản triển khai *sau vá* qua reverse proxy (`127.0.0.1:3102`, backend ở mạng internal).
 
@@ -132,7 +132,7 @@ Table: Bảy pha thực hành ánh xạ vào bốn tình huống
 |---|---|---|---|
 | 1. Thiết lập môi trường | Dựng hai môi trường trước/sau vá (3100 đối chứng, 3102 proxy) | Docker Compose, Node.js | — |
 | 2. Policy as Code | Kiểm chính sách Dockerfile + compose **trước** khi triển khai | Conftest/OPA (Rego) | F03, F04 |
-| 3. Phát hiện điểm yếu & ánh xạ điều khoản | Quét tĩnh mã nguồn (SAST) + quét CVE dependency (SCA), gắn với GDPR/PCI-DSS/CWE | Semgrep, Trivy | F01, F02 |
+| 3. Phát hiện lỗ hổng & ánh xạ điều khoản | Quét tĩnh mã nguồn (SAST) + quét CVE dependency (SCA), gắn với GDPR/PCI-DSS/CWE | Semgrep, Trivy | F01, F02 |
 | 4. Test-Driven Security | Kiểm thử đỏ trước vá, xanh sau vá | node:test + Supertest | F01, F02 |
 | 5. Vá ứng dụng | Sửa mã theo kết quả kiểm thử | TypeScript / Express | F01, F02 |
 | 6. Compliance as Code | Kiểm image thành phẩm (CIS) và **container đang chạy** bằng `docker inspect` + Conftest runtime + Dockle | Dockle, `docker inspect`, Conftest | F03, F04 |
@@ -144,7 +144,7 @@ Mỗi lỗi đi kèm một script demo (`demos/tv1`…`tv4`) tái hiện lỗi t
 
 ## 4.1. Quét và phát hiện lỗi — kết quả thực tế
 
-Các cổng quét tự động được chạy trên mã nguồn và cấu hình *chưa vá* để lộ ra điểm yếu trước khi sửa.
+Các cổng quét tự động được chạy trên mã nguồn và cấu hình *chưa vá* để lộ ra lỗ hổng trước khi sửa.
 
 **SAST (Semgrep).** Quét toàn bộ `routes/` và `lib/` (mã *chưa vá*) cho ra **38 cảnh báo** trên 25 tệp (SQL/NoSQL injection, XSS, băm yếu, JWT secret cố định…). Đây là **cảnh báo công cụ, chưa phải 38 lỗ hổng đã xác nhận**; mỗi cảnh báo là một điểm cần rà soát thêm. Thuộc phạm vi báo cáo, phân tích tĩnh chỉ ra hai điểm: **F01** tại `login.ts` (rule `express-sequelize-injection` — SQL injection ở đăng nhập) và **F02** tại `fileServer.ts` (rule `express-res-sendfile` — Poison Null Byte, lộ tệp sao lưu).
 
@@ -162,7 +162,7 @@ Các cổng quét tự động được chạy trên mã nguồn và cấu hình
 
 !fig[dockle.png](Dockle quét trên image Juice Shop: bản đóng gói sai bị FATAL (secret trong tệp id_rsa giả lập + secret ENV) và WARN chạy root; image triển khai của nhóm không có FATAL/WARN){width=16}
 
-*Tái lập:* các lệnh quét (Semgrep, Gitleaks, Conftest, Trivy, Dockle, `docker inspect`, Prometheus) được gom ở tài liệu ngoài `report/HUONG_DAN_DEMO.md` và `report/CHAY_CHAY.md`; log gốc kèm mã thoát ở `report/evidence/`, ảnh dựng từ `report/figures/capture_runs.py` và `capture_scans.py`.
+*Tái lập:* các lệnh quét (Semgrep, Gitleaks, Conftest, Trivy, Dockle, `docker inspect`, Prometheus) được gom ở tài liệu ngoài `report/HUONG_DAN_DEMO.md` và `report/scanSAC.md`; log gốc kèm mã thoát ở `report/evidence/`, ảnh dựng từ `report/figures/capture_runs.py` và `capture_scans.py`.
 
 ## 4.2. Bảng kết quả hợp nhất
 
@@ -297,7 +297,7 @@ Sau khi sửa, `/metrics` đi qua proxy trả về 404 và cổng backend cũ b�
 
 ## 5.4. F04 — Sai cấu hình an toàn của container
 
-Khác ba lỗi trên, F04 **không phải lỗi của image Juice Shop gốc** (image distroless gốc đã chạy non-root và đạt bộ luật). Đây là một **fixture cấu hình sai chủ động dựng** (`Dockerfile.vulnerable`) để kiểm tra *năng lực phát hiện* của bộ policy, sử dụng cả đầu vào "xấu" (chứng minh luật bắt được) và đầu vào "tốt" (chứng minh luật không báo nhầm).
+Khác ba lỗi trên, F04 **không phải lỗi của image Juice Shop gốc** (image distroless gốc đã chạy non-root và đạt bộ luật). Đây là một **fixture cấu hình sai chủ động dựng** (`report/fixtures/Dockerfile.vulnerable`) để kiểm tra *năng lực phát hiện* của bộ policy, sử dụng cả đầu vào "xấu" (chứng minh luật bắt được) và đầu vào "tốt" (chứng minh luật không báo nhầm).
 
 ### Trước khi sửa
 
@@ -362,7 +362,7 @@ Lệnh `conftest verify` chạy toàn bộ chính sách đạt **19/19** ca ki�
 
 Báo cáo minh họa quy trình **phát hiện – sửa – kiểm chứng** cho hai lỗi mã nguồn (F01 SQL injection ở đăng nhập, F02 Poison Null Byte làm lộ tệp sao lưu), một tình huống phơi nhiễm endpoint giám sát (F03) và một tình huống cấu hình container sai **chủ động dựng** để kiểm tra bộ policy (F04). Toàn bộ được thể hiện dưới dạng **Security as Code** — với **Policy as Code** (mở rộng thành **Compliance as Code**), SAST/SCA, kiểm thử bảo mật và giám sát là các kỹ thuật con — trong một chuỗi kiểm soát DevSecOps chạy được, kèm log gốc và mã bằng chứng (mục 4.2).
 
-Chuỗi kiểm soát trải khắp vòng đời — phát hiện điểm yếu SAST/SCA (Semgrep, Trivy) và kiểm thử động ở Code/Test, Policy as Code (Conftest) ở Build/Deploy, đến Compliance as Code (Dockle/CIS + `docker inspect`) và giám sát Prometheus/Grafana ở Operate. Phần đóng góp của nhóm — trong phạm vi bốn tình huống — gồm: bản vá F01/F02 kèm kiểm thử hồi quy; reverse proxy và giới hạn tốc độ cho F03; bộ luật Rego (Dockerfile + compose, 19 unit test) cho F04; quét **CVE/SCA (Trivy)** và kiểm **CIS image (Dockle)** ở pha Release; và **giám sát vận hành bằng Prometheus/Grafana kèm cảnh báo** fire thật ở pha Operate. Kho mã Juice Shop gốc **đã có** CI/CD, CodeQL và tạo SBOM; báo cáo không khẳng định dự án gốc thiếu tự động hóa bảo mật, đóng góp ở đây là các kiểm soát **bổ sung, hướng dữ liệu cá nhân**.
+Chuỗi kiểm soát trải khắp vòng đời — phát hiện lỗ hổng SAST/SCA (Semgrep, Trivy) và kiểm thử động ở Code/Test, Policy as Code (Conftest) ở Build/Deploy, đến Compliance as Code (Dockle/CIS + `docker inspect`) và giám sát Prometheus/Grafana ở Operate. Phần đóng góp của nhóm — trong phạm vi bốn tình huống — gồm: bản vá F01/F02 kèm kiểm thử hồi quy; reverse proxy và giới hạn tốc độ cho F03; bộ luật Rego (Dockerfile + compose, 19 unit test) cho F04; quét **CVE/SCA (Trivy)** và kiểm **CIS image (Dockle)** ở pha Release; và **giám sát vận hành bằng Prometheus/Grafana kèm cảnh báo** fire thật ở pha Operate. Kho mã Juice Shop gốc **đã có** CI/CD, CodeQL và tạo SBOM; báo cáo không khẳng định dự án gốc thiếu tự động hóa bảo mật, đóng góp ở đây là các kiểm soát **bổ sung, hướng dữ liệu cá nhân**.
 
 Các giới hạn về phạm vi thực nghiệm và hướng mở rộng được trình bày trong tài liệu đi kèm *Giới hạn và hướng mở rộng* (`report/GIOI_HAN_VA_HUONG_MO_RONG.md`).
 

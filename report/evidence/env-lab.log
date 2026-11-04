@@ -2,8 +2,8 @@
 # command : docker ps --filter name=juice-report-lab
 # argv    : docker ps --filter name=juice-report-lab --format table {{.Names}}	{{.Status}}	{{.Ports}}
 # cwd     : E:\banhoaqua\juice-shop
-# time    : 2026-10-29 01:55
+# time    : 2026-11-05 00:34
 # exit    : 0
 # ----- combined stdout+stderr -----
 NAMES              STATUS        PORTS
-juice-report-lab   Up 27 hours   127.0.0.1:3100->3000/tcp
+juice-report-lab   Up 14 hours   127.0.0.1:3100->3000/tcp

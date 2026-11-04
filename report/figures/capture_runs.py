@@ -225,13 +225,13 @@ def main():
     ], evid_id='semgrep-overview', rc=sgrc)
 
     # 5) Conftest (Policy as Code) quét Dockerfile.vulnerable -> gate chặn khi exit != 0 (đúng kỳ vọng)
-    cfail, rc = run('conftest-fail', 'conftest test Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile',
-                    CF + ['test', 'Dockerfile.vulnerable', '--parser', 'dockerfile', '-p', 'policy',
+    cfail, rc = run('conftest-fail', 'conftest test report/fixtures/Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile',
+                    CF + ['test', 'report/fixtures/Dockerfile.vulnerable', '--parser', 'dockerfile', '-p', 'policy',
                           '--namespace', 'dockerfile', '--no-color'], tool='conftest')
     lines = [l for l in cfail.split('\n') if l.startswith(('FAIL', 'WARN'))]
     groups = sorted({l.split(':')[0].split(' - ')[-1] for l in cfail.split('\n') if l.startswith('FAIL')})
     summ_line = next((l for l in cfail.split('\n') if 'failures' in l), '')
-    blocks = [('cmd', 'conftest test Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile')]
+    blocks = [('cmd', 'conftest test report/fixtures/Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile')]
     for l in lines:
         blocks.append((('fail' if l.startswith('FAIL') else 'out'), l))
     blocks.append(('out', summ_line))

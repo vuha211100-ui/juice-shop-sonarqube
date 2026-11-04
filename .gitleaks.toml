@@ -1,0 +1,15 @@
+# Cấu hình gitleaks cho repo báo cáo DevSecOps.
+# Giữ toàn bộ luật mặc định; chỉ loại trừ fixture GIẢ dùng cho demo Dockle
+# (khóa RSA giả "MIIEoFAKEdemoKeyNotReal..." trong report/figures/capture_scans.py) —
+# đây là dữ liệu minh họa, KHÔNG phải secret thật.
+title = "gitleaks config (juice-shop capstone)"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Khoa RSA gia cho demo Dockle (khong phai secret that)"
+regexTarget = "line"
+regexes = [
+  '''MIIEoFAKEdemoKeyNotReal''',
+]

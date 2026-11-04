@@ -77,7 +77,7 @@ def arrow(draw, x0, y0, x1, y1, color, width=5, head=16):
 # ----- tiêu đề -----
 center(d, W / 2, 28, 'Quy trình DevSecOps — ánh xạ 4 lỗi và các cổng kiểm soát theo từng pha', F_TITLE, INK)
 center(d, W / 2, 82,
-       'Cổng kiểm soát: phát hiện điểm yếu SAST/SCA (xanh dương)  ·  kiểm thử TDS (cyan)  ·  '
+       'Cổng kiểm soát: phát hiện lỗ hổng SAST/SCA (xanh dương)  ·  kiểm thử TDS (cyan)  ·  '
        'Policy / Compliance as Code (xanh lá)  ·  giám sát (tím).   Thanh lỗi: F01/F02 (mã nguồn), F03/F04 (triển khai)', F_SUB, MUTE)
 
 # ----- các pha -----
@@ -165,7 +165,7 @@ center(d, W / 2, loop_y - 34,
        'phản hồi liên tục — mỗi cổng trả PASS/WARN/FAIL; chỉ FAIL (luật deny) mới chặn phát hành', F_SMALL, MUTE)
 
 # ----- chú giải (2 hàng × 2 mục) -----
-legend = [('Phát hiện điểm yếu (SAST/SCA) — Semgrep, Trivy, Gitleaks', SAC, SACF),
+legend = [('Phát hiện lỗ hổng (SAST/SCA) — Semgrep, Trivy, Gitleaks', SAC, SACF),
           ('Kiểm thử bảo mật (TDS) — node:test (đỏ trước vá, xanh sau vá)', TDS, TDSF),
           ('Policy / Compliance as Code — Conftest (Rego), Dockle (CIS), docker inspect', PAC, PACF),
           ('Giám sát vận hành — Prometheus/Grafana + cảnh báo', MON, MONF)]
