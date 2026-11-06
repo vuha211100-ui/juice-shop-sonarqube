@@ -54,10 +54,9 @@ jobs:
       - name: "Code · Gitleaks + Semgrep (chặn secret và cảnh báo SAST mới)"
         run: bash devsecops/pipeline.sh --base "${{ steps.base.outputs.base }}" $FULL_FLAG code
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4   # không bật cache npm: Juice Shop không có package-lock.json
         with:
           node-version: 24
-          cache: npm
 
       - name: "Cài phụ thuộc (postinstall build frontend — Juice Shop cần khi khởi động trong test)"
         run: npm install
