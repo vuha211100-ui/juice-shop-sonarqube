@@ -44,6 +44,12 @@
   - Mua hàng: thêm **giỏ hàng** (Basket) → **đặt đơn/thanh toán** (Card/Order), mỗi request kèm JWT ràng buộc chủ sở hữu.
   - Tải tệp tĩnh: `GET /ftp/:file` → `fileServer.ts`, lọc đuôi `.md/.pdf`. *(gốc F02)*
   - Giám sát: `/metrics` (prom-client) xuất số liệu vận hành. *(gốc F03)*
+- **Dữ liệu cần bảo vệ & cơ sở chính sách** (slide riêng, theo bảng ở mục 2 báo cáo + Phụ lục C):
+  - *Bảng:* email/hồ sơ và giỏ hàng → chỉ chủ sở hữu truy cập (GDPR Đ.5(1)(f), 25(2)); mật khẩu, JWT → không vượt xác thực, chỉ cấp khi đúng (Đ.32(1)(b)); thẻ → không lộ số thẻ, PAN lưu ở dạng không đọc được (PCI-DSS 3.4); tệp cấu hình/sao lưu → không tải được qua endpoint tệp tĩnh (Đ.32(1)(b), F02).
+  - *Đ.5(1)(f) — toàn vẹn & bảo mật:* xử lý dữ liệu ở mức an toàn thích hợp, chống truy cập/xử lý trái phép và mất mát, hư hỏng. → F02.
+  - *Đ.25 — từ thiết kế & theo mặc định:* (1) đưa bảo vệ vào ngay khi thiết kế → F04; (2) mặc định không mở dữ liệu cho số người không xác định → F03 (`/metrics` mở sẵn cho mọi client).
+  - *Đ.32 — an toàn khi xử lý:* (1)(b) bảo đảm bí mật, toàn vẹn, sẵn sàng → F01, F02; (1)(d) kiểm thử, đánh giá định kỳ hiệu quả biện pháp → pipeline tự kiểm mỗi lần build (F04).
+  - *PCI-DSS 3.4:* số thẻ không đọc được ở mọi nơi lưu (băm một chiều, cắt bớt, token hóa, mã hóa mạnh). Không viện dẫn cho F02 vì tệp bị lộ là cấu hình, không phải dữ liệu thẻ.
 
 ### A5. DevSecOps gồm gì (Security as Code)
 - **Security as Code (SaC) — khung tổng:** viết **mọi kiểm soát an toàn thành mã** (luật, kịch bản quét, ca kiểm thử, kiểm tuân thủ) đặt trong kho mã, chạy **tự động như các cổng** trong pipeline, **chặn phát hành** khi vi phạm (shift-left). Nhờ là mã nên **review qua pull request, version-control, lặp lại và truy vết** được — thay cho rà soát thủ công một lần. SaC là *cái ô* chứa các kỹ thuật con bên dưới.
