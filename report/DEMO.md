@@ -35,6 +35,7 @@ Image lấy từ Docker Hub (demo tự pull): `bkimminich/juice-shop:v20.2.0`, `
 npm ci
 npm run build:server
 docker volume create juice-report-accesslogs
+docker run --rm --user 0 --entrypoint chown -v juice-report-accesslogs:/logs nginx@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236 101:101 /logs   # proxy chạy UID 101 phải ghi được log
 
 # Môi trường TRƯỚC vá (container đối chứng, 127.0.0.1:3100)
 docker run -d --name juice-report-lab -p 127.0.0.1:3100:3000 `

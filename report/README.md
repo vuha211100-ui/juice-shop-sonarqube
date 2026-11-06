@@ -123,6 +123,7 @@ cd juice-shop-sonarqube
 npm ci                 # cài phụ thuộc (vài phút, tải vài trăm MB)
 npm run build:server   # biên dịch server -> build/ (dùng để dựng image hotfix F01/F02)
 docker volume create juice-report-accesslogs
+docker run --rm --user 0 --entrypoint chown -v juice-report-accesslogs:/logs nginx@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236 101:101 /logs   # proxy chạy UID 101 phải ghi được log
 ```
 
 ---

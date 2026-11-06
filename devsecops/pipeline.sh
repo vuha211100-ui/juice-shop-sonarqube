@@ -209,9 +209,17 @@ st_release() {
 }
 
 # ---------- Deploy: Policy as Code (compose) + triển khai ----------
+NGINX_IMG=$(grep -oE 'nginx@sha256:[0-9a-f]+' docker-compose.yml | head -1)   # image proxy đã ghim trong compose
 deploy_apply() {
+  # Volume log mới tạo thuộc root (0:0 755); proxy chạy UID 101 không ghi được /logs/access.log -> nginx dừng ngay.
   docker volume create juice-report-accesslogs >/dev/null
-  docker compose up -d --no-build --wait --wait-timeout 240 && docker compose ps
+  docker run --rm --user 0 --entrypoint chown -v juice-report-accesslogs:/logs "$NGINX_IMG" 101:101 /logs || return 1
+  docker compose up -d --no-build --wait --wait-timeout 240 || return 1
+  sleep 5                                               # proxy không có healthcheck: chờ rồi xác nhận vẫn còn chạy
+  docker compose ps
+  local svc; for svc in juice-shop proxy; do
+    [ -n "$(docker compose ps -q --status running "$svc")" ] || { echo "Service $svc không chạy:"; docker compose logs --tail 30 "$svc"; return 1; }
+  done
 }
 st_deploy() {
   if ! has_app && ! has_infra; then skip Deploy "Deploy" "không đổi mã/hạ tầng"; return; fi
