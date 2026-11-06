@@ -1,0 +1,26 @@
+# Rủi ro đã chấp nhận cho cổng Trivy (pha Release).
+# Đây là 11 CVE CRITICAL có sẵn trong image gốc bkimminich/juice-shop 20.2.0 (12 bản ghi, khớp báo cáo):
+# thư viện cố ý cũ của ứng dụng huấn luyện, nằm ngoài phạm vi F01–F04.
+# Cổng chỉ chặn CVE CRITICAL MỚI (không có trong danh sách này), ví dụ khi một thay đổi kéo thêm dependency lỗi.
+# Gỡ một dòng khi đã nâng cấp gói tương ứng.
+
+# jsonwebtoken@0.1.0, 0.4.0 (fix 4.2.2)
+CVE-2015-9235
+# lodash@2.4.2 (fix 4.17.12)
+CVE-2019-10744
+# crypto-js@3.3.0 (fix 4.2.0)
+CVE-2023-46233
+# crypto-js@3.3.0 (fix 4.0.0)
+CVE-2026-71851
+# decompress@4.2.1
+CVE-2026-101894
+CVE-2026-53486
+# handlebars@4.7.9 (fix 4.7.10)
+CVE-2026-106445
+CVE-2026-106446
+# tar@6.2.1 (fix 7.5.19)
+CVE-2026-59873
+# proxy-addr@2.0.7 (fix 2.0.8)
+CVE-2026-90711
+# marsdb@0.6.11
+GHSA-5mrr-rgp6-x4gr
