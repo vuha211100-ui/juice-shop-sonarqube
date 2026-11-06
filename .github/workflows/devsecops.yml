@@ -58,8 +58,14 @@ jobs:
         with:
           node-version: 24
 
-      - name: "Cài phụ thuộc (postinstall build frontend — Juice Shop cần khi khởi động trong test)"
-        run: npm install
+      # postinstall gốc (build frontend rồi sinh SBOM) đỏ ở bước SBOM vì Angular không còn ghi
+      # dist/frontend/stats.json -> cài không chạy postinstall, build native sqlite3, build frontend trực tiếp.
+      # Juice Shop cần frontend/dist khi khởi động trong test.
+      - name: "Cài phụ thuộc + build frontend"
+        run: |
+          npm install --ignore-scripts
+          npm rebuild sqlite3
+          cd frontend && npm install && npx ng build --configuration production
 
       - name: "Build · Conftest Dockerfile + tsc + docker build (image ứng viên)"
         run: bash devsecops/pipeline.sh --base "${{ steps.base.outputs.base }}" $FULL_FLAG build
