@@ -80,7 +80,11 @@ docker inspect juice-app-juice-shop-1 --format 'User={{.Config.User}} CapDrop={{
 docker compose -f docker-compose.monitoring.yml up -d       # cần stack ứng dụng đã chạy (gắn mạng backend)
 # Prometheus  http://127.0.0.1:9090   (Status ▸ Targets: juice-shop UP; Alerts: HighClientErrorRate)
 # Grafana     http://127.0.0.1:3103   (dashboard số liệu thật; anonymous)
-# Mô phỏng cảnh báo FIRING (dò đăng nhập → 4XX tăng): chạy  python report/demos/tv3_f03_metrics.py
+```
+**Mô phỏng cảnh báo FIRING** (dò đăng nhập → 4XX tăng). Phải bắn thẳng vào backend qua mạng nội bộ, vì đi qua proxy thì rate-limit trả 429 trước khi tới app:
+```powershell
+docker run --rm --network juice-app_backend curlimages/curl:latest sh -c 'for i in $(seq 1 30); do curl -s -o /dev/null -X POST http://juice-app-juice-shop-1:3000/rest/user/login; done; echo sent'
+# chờ ~30 s -> Alerts: HighClientErrorRate = Firing. Backend vừa khởi động lại thì bắn thêm 1 lần (đợt đầu chỉ tạo chuỗi 4XX mới).
 ```
 > **Dễ bị hỏi — Grafana không cần đăng nhập:** cấu hình bật `anonymous` role **Admin** để demo cho gọn → nguyên tắc là rủi ro (ai vào cũng quyền admin). Giảm nhẹ vì Grafana **chỉ bind loopback `127.0.0.1`** (không ra mạng/host), là portal của người vận hành — khác F03 (`/metrics` phơi ra host cho mọi client). Trả lời: *"biết là rủi ro, bật để demo; thực tế để `Viewer` hoặc bắt đăng nhập; đã nêu ở Giới hạn §4.3"*. Siết nhanh: đổi `GF_AUTH_ANONYMOUS_ORG_ROLE` → `Viewer` (ẩn danh chỉ xem).
 
@@ -92,6 +96,6 @@ docker compose -f docker-compose.monitoring.yml up -d       # cần stack ứng 
   1. **Status ▸ Targets** → `juice-shop` = **UP** (scrape OK; DOWN = không tới được endpoint).
   2. **Graph** → gõ metric (vd `http_requests_count`) rồi **Execute** → xem **Table** (giá trị) / **Graph** (đồ thị). Ngôn ngữ = **PromQL**.
   3. **Alerts** → trạng thái luật (Inactive → Pending → **Firing**).
-- **Demo FIRING:** `python report/demos/tv3_f03_metrics.py` (đẩy 4XX vượt ngưỡng).
+- **Demo FIRING:** chạy lệnh `curlimages/curl` ở trên (30 lần đăng nhập sai bắn thẳng vào backend → 4XX vượt ngưỡng 20).
 - **Prometheus vs Grafana:** Prometheus = lấy + lưu + cảnh báo (bộ não); Grafana = đọc từ Prometheus để **vẽ dashboard** (màn hình). Có thể demo chỉ bằng Prometheus (Targets UP + Alerts FIRING).
 - **Câu "mục đích chính" gọn:** *"Prometheus định kỳ tự lấy số liệu từ /metrics, lưu theo thời gian và tự bắn cảnh báo khi bất thường — lớp phát hiện lúc chạy ở pha Operate; chính vì lấy qua mạng nội bộ nên F03 chặn /metrics từ host mà giám sát vẫn chạy."*

@@ -1,0 +1,107 @@
+# DevSecOps pipeline (SEC4349) — cùng các cổng với Git hook, mỗi pha của sơ đồ là một step:
+#   Code → Build → Test → Release → Deploy → Operate → Monitor
+# Logic nằm trong devsecops/pipeline.sh để máy thành viên (pre-commit / pre-push) và CI chạy giống hệt nhau.
+# Hook có thể bỏ qua bằng --no-verify; workflow này là cổng bắt buộc cuối cùng trước khi merge vào main.
+name: "DevSecOps pipeline"
+
+on:
+  push:
+    branches: [main, "fix/**", "tv-*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Chạy mọi cổng, bỏ lọc theo loại thay đổi (--full)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devsecops-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FULL_FLAG: ${{ (github.event_name == 'workflow_dispatch' && inputs.full) && '--full' || '' }}
+    steps:
+      - name: "Plan · checkout toàn bộ lịch sử (Semgrep/Gitleaks so với commit gốc)"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Xác định commit gốc để so sánh"
+        id: base
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          zero=0000000000000000000000000000000000000000
+          if [ "$EVENT" = pull_request ]; then base=$PR_BASE
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != "$zero" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then base=$BEFORE
+          else base=$(git merge-base HEAD origin/main 2>/dev/null || echo 5658473cf8814459bf89000ce373b20ed0b4eb37)
+          fi
+          [ "$base" = "$(git rev-parse HEAD)" ] && base=5658473cf8814459bf89000ce373b20ed0b4eb37   # nhánh mới tách từ main
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "Commit gốc: $base"
+
+      - name: "Code · Gitleaks + Semgrep (chặn secret và cảnh báo SAST mới)"
+        run: bash devsecops/pipeline.sh --base "${{ steps.base.outputs.base }}" $FULL_FLAG code
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: "Cài phụ thuộc (postinstall build frontend — Juice Shop cần khi khởi động trong test)"
+        run: npm install
+
+      - name: "Build · Conftest Dockerfile + tsc + docker build (image ứng viên)"
+        run: bash devsecops/pipeline.sh --base "${{ steps.base.outputs.base }}" $FULL_FLAG build
+
+      - name: "Test · node:test + Supertest (test/api/security)"
+        run: bash devsecops/pipeline.sh --base "${{ steps.base.outputs.base }}" $FULL_FLAG test
+
+      - name: "Release · Trivy + Dockle, đạt thì gắn tag phát hành"
+        run: bash devsecops/pipeline.sh --base "${{ steps.base.outputs.base }}" $FULL_FLAG release
+
+      - name: "Deploy · Conftest compose + docker compose up"
+        run: bash devsecops/pipeline.sh --base "${{ steps.base.outputs.base }}" $FULL_FLAG deploy
+
+      - name: "Operate · runtime.rego + kiểm tra proxy (/metrics 404, header, rate-limit)"
+        run: |
+          if docker compose ps -q juice-shop | grep -q .; then
+            bash devsecops/pipeline.sh operate
+          else
+            echo "Pha Deploy không triển khai (không đổi mã/hạ tầng) — bỏ qua Operate/Monitor"
+          fi
+
+      - name: "Monitor · Prometheus scrape /metrics nội bộ + luật cảnh báo"
+        run: |
+          if docker compose ps -q juice-shop | grep -q .; then
+            docker compose -f docker-compose.monitoring.yml up -d
+            bash devsecops/pipeline.sh monitor
+          fi
+
+      - name: "Lưu log các cổng"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devsecops-logs
+          path: |
+            .devsecops/*.log
+            .devsecops/*.json
+            .devsecops/summary.md
+          if-no-files-found: ignore
+
+      - name: "Dọn môi trường"
+        if: always()
+        run: |
+          docker compose -f docker-compose.monitoring.yml down -v 2>/dev/null || true
+          docker compose down -v 2>/dev/null || true
