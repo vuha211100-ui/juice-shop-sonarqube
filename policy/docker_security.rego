@@ -86,10 +86,7 @@ warn contains msg if {
 	msg := sprintf("SUPPLY-CHAIN: base image '%s' is not pinned by digest (digest pin khác với Content Trust/CIS 4.5). (CIS Docker Benchmark §4; NIST SSDF)", [ins.Value[0]])
 }
 
-# SECRET-IN-IMAGE — luật riêng của nhóm -------------------------------------
-# Bí mật đặt trong ENV/ARG bị bake vào layer ảnh và lộ qua `docker history`. Ánh xạ
-# luật secret của compose (F03) xuống tầng Dockerfile. ENV parse thành [key, value, "=", ...];
-# ARG parse thành ["KEY=VALUE"].
+
 secret_key := `(?i)(password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential)`
 
 deny contains msg if {

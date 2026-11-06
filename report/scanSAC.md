@@ -1,13 +1,9 @@
-# scanSAC — Lệnh chạy các công cụ (slide A7 · ánh xạ công cụ ↔ pha)
 
-> PowerShell, chạy tại gốc repo. Phiên bản công cụ: Semgrep 1.180.0 · Gitleaks v8.30.1 · Conftest/OPA v0.71.1 · Trivy 0.76.1 · Dockle 0.4.15 · Prometheus/Grafana (latest). `3100` = trước vá · `3102` = sau vá.
 
 **Chuẩn bị — dựng stack:**
 ```powershell
 cd E:\banhoaqua\juice-shop
 $ROOT = "E:/banhoaqua/juice-shop"       # dùng cho các lệnh docker bên dưới
-docker start juice-report-lab           # container đối chứng (3100)
-docker compose up -d --build            # stack ứng dụng: backend + proxy (3102)
 ```
 
 ### Pha Code — Phát hiện lỗ hổng
@@ -20,7 +16,7 @@ docker run --rm -e SEMGREP_SEND_METRICS=off -v "${ROOT}:/src:ro" -v "${ROOT}/rep
   /src/routes /src/lib                  # quét hết routes + lib -> 38 cảnh báo / 25 tệp
 git checkout HEAD -- routes             # trả lại bản vá
 ```
-*Lưu ý (SAST cảnh báo theo mẫu code):* phần lớn 38 cảnh báo nằm ở `lib/` (JWT RS256 cố định, băm yếu…) — **ngoài phạm vi 4 lỗi, nhóm không xử lý**. Sau vá: **F01 hết báo** (dòng lỗi được viết lại), nhưng **F02 vẫn còn** mẫu `res.sendFile` (chạy thật đã chặn 403 — là residual, không phải lỗ hổng còn sống). Quét trên mã đã vá (bỏ 2 dòng `git checkout`) ra **~37**.
+
 
 **Gitleaks (quét secret)** — quét commit vá của nhóm:
 ```powershell
@@ -28,7 +24,6 @@ docker run --rm -v "${ROOT}:/repo:ro" zricethezav/gitleaks:v8.30.1 `
   git /repo --log-opts="baf9dcea4..HEAD" --no-banner      # kỳ vọng: no leaks found (exit 0)
 ```
 
-### Pha Build — Policy as Code (Dockerfile)
 **Conftest · `docker_security.rego`** (F04):
 ```powershell
 $CF = @("run","--rm","-v","${ROOT}:/work:ro","-w","/work","openpolicyagent/conftest:v0.71.1")
@@ -38,8 +33,6 @@ docker @CF test Dockerfile --parser dockerfile -p policy --namespace dockerfile 
 docker @CF test deploy/Dockerfile.hotfix --parser dockerfile -p policy --namespace dockerfile --no-color               # image đã vá: exit 0
 ```
 
-### Pha Test — Kiểm thử bảo mật (TDS)
-**node:test + Supertest** — đỏ trước vá → xanh sau vá:
 ```powershell
 git checkout 21219d66d -- routes        # lấy tạm route CHƯA vá -> một số ca đỏ
 node --import ./test/api/helpers/test-env.mjs --import tsx --test test/api/security/f01-f02.test.ts
@@ -47,8 +40,7 @@ git checkout HEAD -- routes             # trả lại bản vá -> toàn bộ ca
 node --import ./test/api/helpers/test-env.mjs --import tsx --test test/api/security/f01-f02.test.ts
 ```
 
-### Pha Release — Quét image đã build
-> Nếu máy **chưa cài** `trivy`/`dockle` (báo `command not found`), chạy qua **Docker** như dưới (không cần cài). Nếu đã cài sẵn thì dùng thẳng `trivy …` / `dockle …`.
+
 
 **Trivy (SCA)** — CVE dependency. *Lọc theo mức cho dễ nhìn* (đầu ra có bảng **Report Summary** đếm theo mức ở trên cùng):
 ```powershell
@@ -75,27 +67,99 @@ docker @CF test docker-compose.yml -p policy --namespace compose --no-color   # 
 docker inspect juice-app-juice-shop-1 --format '{{json .HostConfig.PortBindings}}'                       # cổng host: trống (backend không lộ)
 docker inspect juice-app-juice-shop-1 --format 'User={{.Config.User}} CapDrop={{.HostConfig.CapDrop}} Sec={{.HostConfig.SecurityOpt}}'   # non-root · cap_drop · no-new-privileges
 ```
-**Prometheus + Grafana** — giám sát + cảnh báo:
-```powershell
-docker compose -f docker-compose.monitoring.yml up -d       # cần stack ứng dụng đã chạy (gắn mạng backend)
-# Prometheus  http://127.0.0.1:9090   (Status ▸ Targets: juice-shop UP; Alerts: HighClientErrorRate)
-# Grafana     http://127.0.0.1:3103   (dashboard số liệu thật; anonymous)
-```
-**Mô phỏng cảnh báo FIRING** (dò đăng nhập → 4XX tăng). Phải bắn thẳng vào backend qua mạng nội bộ, vì đi qua proxy thì rate-limit trả 429 trước khi tới app:
-```powershell
-docker run --rm --network juice-app_backend curlimages/curl:latest sh -c 'for i in $(seq 1 30); do curl -s -o /dev/null -X POST http://juice-app-juice-shop-1:3000/rest/user/login; done; echo sent'
-# chờ ~30 s -> Alerts: HighClientErrorRate = Firing. Backend vừa khởi động lại thì bắn thêm 1 lần (đợt đầu chỉ tạo chuỗi 4XX mới).
-```
-> **Dễ bị hỏi — Grafana không cần đăng nhập:** cấu hình bật `anonymous` role **Admin** để demo cho gọn → nguyên tắc là rủi ro (ai vào cũng quyền admin). Giảm nhẹ vì Grafana **chỉ bind loopback `127.0.0.1`** (không ra mạng/host), là portal của người vận hành — khác F03 (`/metrics` phơi ra host cho mọi client). Trả lời: *"biết là rủi ro, bật để demo; thực tế để `Viewer` hoặc bắt đăng nhập; đã nêu ở Giới hạn §4.3"*. Siết nhanh: đổi `GF_AUTH_ANONYMOUS_ORG_ROLE` → `Viewer` (ẩn danh chỉ xem).
 
-### Prometheus — mục đích & cách dùng (hiện đang đọc gì)
-- **Mục đích:** hệ **thu thập số liệu vận hành theo thời gian + cảnh báo**, mô hình **PULL** (Prometheus *tự đi lấy*, không phải app đẩy). Không dùng để vẽ (đó là Grafana) — Prometheus là "bộ não".
-- **Hiện đang đọc gì** (`deploy/monitoring/prometheus.yml`): job `juice-shop`, **mỗi 10 giây** gọi `GET /metrics` tại `juice-app-juice-shop-1:3000` **qua mạng nội bộ `backend`** (không ra host → vẫn đúng F03). Metric gồm: số người dùng đăng ký, đơn hàng, số dư ví, thời gian xử lý HTTP, `http_requests_count` theo `status_code`, RAM tiến trình.
-- **Luật cảnh báo** (`deploy/monitoring/alerts.yml`): `HighClientErrorRate` = `sum(increase(http_requests_count{status_code="4XX"}[2m])) > 20` → **FIRING** khi 4XX vượt 20 trong 2 phút (dấu hiệu dò đăng nhập / null-byte / bị rate-limit chặn).
-- **Cách dùng** (`http://127.0.0.1:9090`):
-  1. **Status ▸ Targets** → `juice-shop` = **UP** (scrape OK; DOWN = không tới được endpoint).
-  2. **Graph** → gõ metric (vd `http_requests_count`) rồi **Execute** → xem **Table** (giá trị) / **Graph** (đồ thị). Ngôn ngữ = **PromQL**.
-  3. **Alerts** → trạng thái luật (Inactive → Pending → **Firing**).
-- **Demo FIRING:** chạy lệnh `curlimages/curl` ở trên (30 lần đăng nhập sai bắn thẳng vào backend → 4XX vượt ngưỡng 20).
-- **Prometheus vs Grafana:** Prometheus = lấy + lưu + cảnh báo (bộ não); Grafana = đọc từ Prometheus để **vẽ dashboard** (màn hình). Có thể demo chỉ bằng Prometheus (Targets UP + Alerts FIRING).
-- **Câu "mục đích chính" gọn:** *"Prometheus định kỳ tự lấy số liệu từ /metrics, lưu theo thời gian và tự bắn cảnh báo khi bất thường — lớp phát hiện lúc chạy ở pha Operate; chính vì lấy qua mạng nội bộ nên F03 chặn /metrics từ host mà giám sát vẫn chạy."*
+
+
+### Integration — 4 lỗi F01–F04 đi qua quy trình DevSecOps
+
+#### Chuẩn bị
+```powershell
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$GB = "C:\Program Files\Git\bin\bash.exe"
+docker compose up -d
+docker compose -f docker-compose.monitoring.yml up -d
+git switch main
+git status -s routes deploy docker-compose.yml
+git config core.hooksPath
+```
+
+#### F01 — SQL injection quay lại `login.ts`: bị chặn ở Code (Semgrep) và Test
+```powershell
+git restore --source 5658473cf -- routes/login.ts
+git add routes/login.ts
+git commit -m "demo F01"                  # -> Semgrep FAIL, commit bị hủy
+& $GB devsecops/pipeline.sh test          # -> Test FAIL (payload SQLi được 200)
+git restore --staged --worktree routes/login.ts
+```
+
+#### Lộ khóa bí mật trong mã: bị chặn ở Code (Gitleaks)
+```powershell
+Add-Content routes/login.ts 'export const awsKey = "AKIAZ7Q4M2K9LX3VBN8P"'
+git add routes/login.ts
+git commit -m "demo secret"               # -> Gitleaks FAIL, commit bị hủy
+git restore --staged --worktree routes/login.ts
+```
+
+#### F02 — Poison Null Byte quay lại `fileServer.ts`: Semgrep không thấy, Test chặn
+```powershell
+git restore --source 5658473cf -- routes/fileServer.ts
+git add routes/fileServer.ts
+& $GB devsecops/pipeline.sh --staged --quick code   # -> Code PASS
+& $GB devsecops/pipeline.sh test                    # -> Test FAIL (đọc được .bak)
+git restore --staged --worktree routes/fileServer.ts
+```
+
+#### F03 — Backend mở cổng ra host: bị chặn ở Deploy (Policy as Code `compose.rego`)
+```powershell
+$p = (Resolve-Path docker-compose.yml).Path; [IO.File]::WriteAllText($p, ([IO.File]::ReadAllText($p) -replace 'labels: \{lab\.exposure: internal\}.*', 'ports: ["0.0.0.0:3000:3000"]'))
+git add docker-compose.yml
+git commit -m "demo F03"                  # -> F03 NET-02 + NET-01 FAIL, commit bị hủy
+git restore --staged --worktree docker-compose.yml
+```
+
+#### F03 — Proxy hết chặn `/metrics` khi đang chạy: bị chặn ở Operate
+```powershell
+$p = (Resolve-Path deploy\nginx.conf).Path; [IO.File]::WriteAllText($p, ([IO.File]::ReadAllText($p) -replace '(?m)^.*location = /metrics \{ return 404; \}\r?\n', ''))
+docker compose restart proxy
+& $GB devsecops/pipeline.sh operate       # -> FAIL: GET /metrics → 200
+git restore deploy/nginx.conf
+docker compose restart proxy
+& $GB devsecops/pipeline.sh operate       # -> 5 PASS
+```
+
+#### F04 — Dockerfile bỏ `USER` (chạy root): bị chặn ở Build (Policy as Code `docker_security.rego`)
+```powershell
+$p = (Resolve-Path deploy\Dockerfile.hotfix).Path; [IO.File]::WriteAllText($p, ([IO.File]::ReadAllText($p) -replace '(?m)^USER 65532\r?$', ''))
+git add deploy/Dockerfile.hotfix
+git commit -m "demo F04"                  # -> LEAST-PRIVILEGE FAIL, commit bị hủy
+git restore --staged --worktree deploy/Dockerfile.hotfix
+```
+
+#### F04 — Container chạy root, không cap_drop, không giới hạn: bị chặn ở Operate (Compliance as Code `runtime.rego`)
+```powershell
+docker run -d --name f04-root --user 0 juice-shop:hotfix-f01-f02
+docker inspect --format '{{json .}}' f04-root | docker run --rm -i -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 test --parser json -p report/policy --namespace runtime -   # -> 5 FAIL
+docker rm -f f04-root
+```
+
+#### Bản đã vá đi qua đủ 7 pha
+```powershell
+& $GB devsecops/pipeline.sh               # -> 20 PASS · 1 WARN · 0 FAIL
+```
+
+#### Bỏ qua hook (`--no-verify`): GitHub Actions vẫn chặn
+```powershell
+git switch -c fix/demo-ci main
+git restore --source 5658473cf -- routes/login.ts
+git add routes/login.ts
+git commit -m "demo: bypass hook" --no-verify
+git push github fix/demo-ci --no-verify
+git switch main                           # -> Actions đỏ ở step Code
+```
+
+#### Dọn và tự kiểm bản vá còn nguyên
+```powershell
+& $GB devsecops/demo-cleanup.sh
+git status -s routes deploy docker-compose.yml
+node --import ./test/api/helpers/test-env.mjs --import tsx --test --test-force-exit test/api/security/f01-f02.test.ts   # -> pass 11
+```

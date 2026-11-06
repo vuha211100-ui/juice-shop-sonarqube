@@ -64,6 +64,10 @@ bash devsecops/pipeline.sh deploy operate monitor   # triển khai bản đã ph
 
 Khi đã đạt, pre-push ghi dấu theo SHA (`.devsecops/pass-<sha>`). Nhờ đó đẩy cùng commit lên nhánh thứ hai (ví dụ `main` rồi `fix/f01-f04`) không phải chạy lại.
 
+## Demo
+
+Kịch bản demo từng bước (commit bị chặn, hạ tầng sai bị chặn, chạy đủ 7 pha, CI đỏ khi bỏ qua hook): `devsecops/DEMO.md`. Dọn sau demo: `bash devsecops/demo-cleanup.sh`.
+
 ## Chạy tay
 
 ```bash
