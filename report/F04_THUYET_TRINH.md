@@ -3,7 +3,7 @@
 > Dựa trên `report/SLIDE_BaoCao_JuiceShop.pptx` (slide 12 bộ luật, slide 14 kết quả quét, **slide 19 F04**, **slide 26 phần việc thành viên 4/4**) và báo cáo `report/BaoCao_DevSecOps_JuiceShop_gon.docx` mục 5.4, Bảng 10, Phụ lục A.
 > Mọi output trong tài liệu là **kết quả chạy thật** (Conftest v0.71.1) — có thể chạy lại bằng lệnh kèm theo.
 
-Mục lục: 1. Thông điệp chính · 2. Kịch bản nói slide 19 · 3. Kịch bản nói slide 26 · 4. Rego cơ bản để hiểu code · 5. Giải thích từng dòng `docker_security.rego` · 6. Giải thích 13 ca kiểm thử · 7. `runtime.rego` và Dockle (3 lớp kiểm) · 8. Hậu quả an ninh của từng vi phạm · 9. Những gì bộ luật CHƯA bắt (đã chạy thử) · 10. Hướng mở rộng · 11. Câu hỏi phản biện · 12. Chất liệu "chém gió" · 13. Checklist trước giờ G
+Mục lục: 1. Thông điệp chính · 2. Kịch bản nói slide 19 · 3. Kịch bản nói slide 26 · 4. Rego cơ bản để hiểu code · 5. Giải thích từng dòng `docker_security.rego` · 6. Giải thích 13 ca kiểm thử · 7. `runtime.rego` và Dockle (3 lớp kiểm) · 8. Hậu quả an ninh của từng vi phạm · 9. Những gì bộ luật CHƯA bắt (đã chạy thử) · 10. Hướng mở rộng · 11. Câu hỏi phản biện · 12. Chất liệu "chém gió" · 13. Checklist trước giờ G · 14. Tổng hợp toàn bộ luật (Dockerfile + compose + runtime)
 
 ---
 
@@ -382,6 +382,7 @@ Cách nói: "Bộ luật có ca kiểm thử cho **từng kiểu lách đã bi�
 
 ### 8.2 USER dạng tên, không phải số (WARN)
 - Tên tra theo `/etc/passwd` của image → đổi base image có thể đổi UID; Kubernetes `runAsNonRoot` không xác minh được → container bị từ chối, hoặc người vận hành tắt kiểm tra cho "chạy được" → mất bảo vệ.
+- **Bẫy của UID số không kèm GID** (đã chạy thử `docker run --user 65532 quay.io/centos/centos:stream9`): ra `uid=65532 gid=0(root)`, `whoami: cannot find name for user ID 65532`, `HOME=/`. UID không có trong `/etc/passwd` thì Docker gán **group root (0)** — không phải root, nhưng thừa quyền với tệp của group 0. Ghi `--user 65532:65532` thì ra `uid=65532 gid=65532`. Image của nhóm không dính vì distroless đã có user `nonroot` 65532:65532; bẫy chỉ xảy ra khi đem cùng dòng `USER 65532` sang base image khác.
 
 ### 8.3 Khai báo cổng quản trị/CSDL (ATTACK-SURFACE)
 - **Sự thật kỹ thuật:** `EXPOSE` **tự nó không mở cổng** — chỉ là tài liệu. Nói rõ điều này để không bị bắt bẻ.
@@ -431,8 +432,9 @@ Cách nói: "Bộ luật có ca kiểm thử cho **từng kiểu lách đã bi�
 | B7 | `ENV DB_PASSWORD_FILE=/run/secrets/db TOKEN_URL=https://...` | **exit 1 — chặn nhầm** (false positive) | Làm phiền người dùng → họ tìm cách tắt luật | Cho phép hậu tố `_FILE` (như `compose.rego` đã làm), loại `_URL` |
 | B8 | `USER node` | exit 0, WARN | Xem 8.2 | Có thể nâng lên deny cho môi trường Kubernetes |
 | B9 | `COPY .env /app/.env` | **exit 0** | Tệp bí mật nằm trong layer | **Thiết kế:** đây là việc của Dockle (kiểm thành phẩm) và `.dockerignore`; có thể thêm luật cảnh báo COPY tệp tên nhạy cảm |
+| B10 | `ARG DB_PASSWD==x` (giá trị bắt đầu bằng `=`) | **exit 0** — `split` cắt ở mọi dấu `=` → `["DB_PASSWD","","x"]`, `[1]` rỗng | Mật khẩu base64 hay có `=` ở đầu/cuối → lọt | Xét phần sau dấu `=` **đầu tiên**: `indexof(tok, "=") < count(tok) - 1` |
 
-Cách nói khi bị hỏi "luật có lách được không?": "Có, nhóm đã thử và ghi nhận 9 trường hợp, ví dụ USER bằng biến ARG mặc định 0. Vì vậy nhóm không dựa vào một lớp: Dockle kiểm image thành phẩm và `runtime.rego` kiểm container đang chạy — `runtime.rego` đòi **UID số ≥ 1** từ `docker inspect`, nên trường hợp B5 sẽ bị chặn ở lớp chạy. Các điểm còn lại là hướng mở rộng của bộ luật."
+Cách nói khi bị hỏi "luật có lách được không?": "Có, nhóm đã thử và ghi nhận 10 trường hợp, ví dụ USER bằng biến ARG mặc định 0. Vì vậy nhóm không dựa vào một lớp: Dockle kiểm image thành phẩm và `runtime.rego` kiểm container đang chạy — `runtime.rego` đòi **UID số ≥ 1** từ `docker inspect`, nên trường hợp B5 sẽ bị chặn ở lớp chạy. Các điểm còn lại là hướng mở rộng của bộ luật."
 
 > Lưu ý trung thực: B5 bị `runtime.rego` chặn là suy luận từ mã luật (PRIV-02 đọc `Config.User` thực tế sau khi build — với `USER ${APP_UID}` và `APP_UID=0`, giá trị sẽ là `0`, không khớp regex `^[1-9]...`); nhóm chưa dựng container riêng để chạy thử trường hợp này.
 
@@ -441,7 +443,7 @@ Cách nói khi bị hỏi "luật có lách được không?": "Có, nhóm đã 
 ## 10. Hướng mở rộng (nói theo 3 tầng thời gian)
 
 **Ngắn hạn — làm cứng bộ luật hiện có**
-- Vá 9 điểm ở mục 9, mỗi điểm thêm **một ca kiểm thử** (đúng tinh thần Test-Driven Security: tìm ra lỗ → viết ca đỏ → sửa luật → xanh).
+- Vá 10 điểm ở mục 9, mỗi điểm thêm **một ca kiểm thử** (đúng tinh thần Test-Driven Security: tìm ra lỗ → viết ca đỏ → sửa luật → xanh).
 - Thêm luật CIS mục 4 còn thiếu: **4.6 HEALTHCHECK** (hotfix đã có nhưng luật chưa bắt buộc), **4.7** không chạy lệnh update đứng riêng, **4.8** gỡ setuid/setgid, **4.2** chỉ cho base image từ danh sách registry tin cậy (allowlist: distroless, Docker Official Images).
 - Đo **độ phủ luật**: `opa test --coverage` để biết dòng luật nào chưa có ca kiểm thử.
 - Cơ chế **ngoại lệ có thời hạn** (waiver): cho phép bỏ qua 1 luật cho 1 image kèm lý do và ngày hết hạn, thay vì để người dùng tắt cả cổng.
@@ -486,7 +488,7 @@ Cách nói khi bị hỏi "luật có lách được không?": "Có, nhóm đã 
 - "Bí mật trong layer giống viết mật khẩu lên tường rồi sơn đè: lớp sơn mới không xóa chữ ở lớp dưới."
 - "Mỗi luật đều có ca kiểm thử — chúng em kiểm thử cả công cụ kiểm thử."
 - "Shift-left: sửa một dòng Dockerfile mất 1 phút; sửa sau khi image đã chạy ở 100 máy chủ mất cả ngày."
-- "Chúng em tự tấn công bộ luật của mình và tìm ra 9 điểm yếu — đó là lý do có ba lớp kiểm, không đặt cược vào một lớp."
+- "Chúng em tự tấn công bộ luật của mình và tìm ra 10 điểm yếu — đó là lý do có ba lớp kiểm, không đặt cược vào một lớp."
 
 **Câu chuyện thực tế (đã kiểm chứng ở mức phổ biến; nói ngắn, không bịa chi tiết)**
 - runc **CVE-2019-5736** (2019): root trong container ghi đè runc trên host → root máy chủ.
@@ -510,3 +512,101 @@ Cách nói khi bị hỏi "luật có lách được không?": "Có, nhóm đã 
 - [ ] Phóng to chữ terminal (Ctrl + cuộn) để người ngồi cuối đọc được.
 - [ ] Thuộc 3 câu ở mục 1 và các con số: **4 nhóm luật, 6 vi phạm, exit 1, 13 ca, 19/19, UID 10001 / 65532, Dockle 0 FATAL**.
 - [ ] Lệnh dự phòng nếu demo hỏng: `docker run --rm -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 test report/fixtures/Dockerfile.vulnerable --parser dockerfile -p policy --namespace dockerfile --no-color`
+
+---
+
+## 14. Tổng hợp toàn bộ luật — 3 bộ, 25 luật, 26 ca kiểm thử
+
+Ba bộ luật Rego kiểm **ba thứ khác nhau ở ba thời điểm**. `deny` = **FAIL** (exit 1, pipeline dừng), `warn` = **WARN** (chỉ nhắc, exit 0).
+
+| Bộ luật | Kiểm cái gì | Pha | `input` là gì | Luật | Ca test |
+|---|---|---|---|---|---|
+| `policy/docker_security.rego` (F04) | `Dockerfile`, `deploy/Dockerfile.hotfix` | Build | mảng các lệnh Dockerfile | 8 deny + 2 warn | 13 |
+| `policy/compose.rego` (F03) | `docker-compose.yml` | Deploy (trước `compose up`) | object YAML của compose | 5 deny + 2 warn | 6 |
+| `report/policy/runtime.rego` (F03/F04) | `docker inspect` của container đang chạy | Operate | object JSON của container | 8 deny | 7 |
+
+### 14.1 `docker_security.rego` — công thức image (Policy as Code)
+
+| Nhóm | Bắt khi | Mức | Chuẩn |
+|---|---|---|---|
+| LEAST-PRIVILEGE | Stage cuối **không có `USER`** | FAIL | CIS 4.1, PCI-DSS 2.2, NIST 800-190 |
+| | `USER` cuối là root (`root`, `0`, `0:1000`, `root:1000`) | FAIL | CIS 4.1, PCI-DSS 2.2 |
+| | `USER` không phải UID số (`USER node`) | WARN | CIS 4.1 |
+| ATTACK-SURFACE | `EXPOSE` 22, 23, 2375, 2376, 3306, 5432, 6379, 27017 (cả dạng `22/tcp`), ở mọi stage | FAIL | CIS 5.8, NIST 800-190 |
+| SUPPLY-CHAIN | Thiếu nhãn `org.opencontainers.image.source` / `.revision` | FAIL | OCI image-spec, NIST SSDF |
+| | `FROM …:latest` | FAIL | CIS §4, NIST SSDF |
+| | Dùng `ADD` | FAIL | CIS 4.9 |
+| | `FROM` không ghim `@sha256:` | WARN | CIS §4, NIST SSDF |
+| SECRET-IN-IMAGE | `ENV` có **tên** khớp `password\|passwd\|secret\|token\|api_key\|access_key\|private_key\|credential` **và** giá trị không rỗng | FAIL | CIS 4.10, GDPR 32, PCI-DSS 8.2.1 |
+| | `ARG` như trên, ở giá trị mặc định | FAIL | như trên |
+
+Luật bí mật **chỉ xét tên, không xét giá trị**: `ENV DB_PASSWORD=changeme` vẫn FAIL; `ENV DB_PASSWORD=` và `ARG NPM_TOKEN` (không mặc định) PASS; `ENV AWS=AKIA…` (tên vô hại) lọt — việc của Gitleaks ở pha Code.
+
+### 14.2 `compose.rego` — cấu hình triển khai (Policy as Code, F03)
+
+| Mã | Bắt khi | Mức | Chuẩn |
+|---|---|---|---|
+| F03 NET-02 | Service **không có nhãn `lab.exposure: edge`** mà vẫn publish cổng → backend đi vòng qua được proxy (nơi chặn `/metrics`, giới hạn tốc độ) | FAIL | luật của nhóm |
+| NET-01 | Cổng publish không bind `127.0.0.1` (`"3000:3000"`, `0.0.0.0`) | FAIL | GDPR 32 |
+| — | `privileged: true` | FAIL | CIS 5.4 |
+| — | Mount `docker.sock` | FAIL | CIS 5.31 |
+| — | `environment` có `…PASSWORD=`, `…SECRET=`, `…TOKEN=`, `…API_KEY=` kèm giá trị (`*_FILE` được phép) | FAIL | PCI-DSS 8.2.1, GDPR 32 |
+| — | Thiếu `cap_drop: [ALL]` | WARN | CIS 5.3 |
+| — | Thiếu `read_only: true` | WARN | CIS 5.12 |
+
+Luật cổng hiểu đủ 3 cách viết `ports` của Compose: chuỗi `"127.0.0.1:3102:8080"`, số `3000`, object `{host_ip, …}`.
+
+### 14.3 `runtime.rego` — container đang chạy (Compliance as Code)
+
+| Mã | Bắt khi |
+|---|---|
+| RES-02 | Không giới hạn CPU (`NanoCpus` ≤ 0) |
+| RES-03 | Không giới hạn số tiến trình (`PidsLimit`) → fork bomb |
+| PRIV-01 | `Privileged == true` |
+| PRIV-02 | User **không phải UID số ≥ 1** — ở lớp này `node` cũng FAIL (chặt hơn lớp Dockerfile) |
+| PRIV-03 | Không `CapDrop: ["ALL"]` |
+| PRIV-04 | Không `no-new-privileges:true` |
+| NET-01 | Cổng trên host bind khác `127.0.0.1` |
+| F03 NET-02 | Container không nhãn `edge` mà có cổng trên host |
+
+Tất cả là FAIL. Lớp này bắt trường hợp **tệp đúng nhưng chạy sai** (ai đó `docker run` tay, override bị quên).
+
+### 14.4 Cùng một rủi ro, kiểm ở nhiều lớp
+
+| Rủi ro | Dockerfile | Compose | Runtime |
+|---|---|---|---|
+| Chạy root | FAIL (root) / WARN (tên) | — | FAIL (chặt nhất) |
+| Backend lộ cổng (F03) | — | FAIL | FAIL |
+| Bind ngoài loopback | — | FAIL | FAIL |
+| Privileged | — | FAIL | FAIL |
+| Capability | — | WARN | FAIL |
+| Bí mật nhúng sẵn | FAIL | FAIL | — |
+| Cổng quản trị/CSDL | FAIL | — | — |
+| Nguồn gốc / base image | FAIL / WARN | — | — |
+
+### 14.5 Trạng thái hiện tại của repo (chạy thật)
+
+- `conftest verify -p policy -p report/policy`: **26/26** (13 + 6 + 7). Chỉ `-p policy` thì 19/19 như ở mục 2.
+- Dockerfile + hotfix: **0 FAIL**, 2 WARN — `node:24` và `distroless/nodejs24-debian13` chưa ghim digest (hotfix ghim rồi).
+- Compose: **0 FAIL**, 1 WARN — `juice-shop` chưa `read_only`.
+- Runtime: `juice-app-juice-shop-1` và `juice-app-proxy-1` đều **8/8**.
+
+### 14.6 Chạy từng bộ luật bằng Docker (PowerShell, đứng ở gốc repo)
+
+```powershell
+docker run --rm -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 verify -p policy -p report/policy
+docker run --rm -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 test Dockerfile deploy/Dockerfile.hotfix --parser dockerfile -p policy --namespace dockerfile
+docker run --rm -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 test docker-compose.yml -p policy --namespace compose
+docker inspect --format '{{json .}}' juice-app-juice-shop-1 | docker run --rm -i -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 test --parser json -p report/policy --namespace runtime -
+docker inspect --format '{{json .}}' juice-app-proxy-1     | docker run --rm -i -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 test --parser json -p report/policy --namespace runtime -
+```
+
+Lỗi hay gặp:
+- **Đường dẫn sau tên image là đường dẫn trong container Linux**: viết `report/fixtures/Dockerfile.vulnerable` (hoặc `/work/report/...`). `.\report\...` (dấu `\`) và `/report/...` (tuyệt đối từ gốc container) đều báo `no such file or directory`.
+- **Thiếu `--namespace`** → Conftest chỉ chạy gói `main` → "0 tests".
+- **Không ghi `docker inspect … > x.json` trong PowerShell 5.1** (ra UTF-16, Conftest đọc lỗi) → dùng pipe như trên. `docker inspect` 2 container một lần trả **mảng** — `runtime.rego` cần từng object, nên chạy riêng từng container.
+- Git Bash: thay `${PWD}` bằng `$(pwd -W)` và thêm `MSYS_NO_PATHCONV=1` đầu lệnh.
+
+### 14.7 Chưa bắt (tóm tắt mục 9)
+
+Bí mật dưới tên vô hại (B3) · dải cổng `20-25` (B2) · `*_FILE` trong Dockerfile bị chặn nhầm (B7 — compose đã xử lý đúng) · `ARG …==x` (B10) · `USER ${ARG}` mặc định 0 (B5, lớp runtime chặn) · giới hạn RAM (RES-01 bỏ có chủ ý theo phạm vi báo cáo).
