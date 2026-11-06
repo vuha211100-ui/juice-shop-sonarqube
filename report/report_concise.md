@@ -103,7 +103,7 @@ Table: Công cụ và vai trò
 
 ## 3.2. Chính sách và tiêu chuẩn đối chiếu
 
-Báo cáo đối chiếu các **tiêu chuẩn quốc tế** về bảo vệ dữ liệu cá nhân; ngưỡng và luật Rego cụ thể do nhóm thiết kế cho môi trường lab. Phần thân chỉ ghi **mã điều khoản** — **ý nghĩa (yêu cầu gì) của mọi điều khoản tra tại Phụ lục C**.
+Báo cáo đối chiếu các **tiêu chuẩn quốc tế** về bảo vệ dữ liệu cá nhân; nhóm dựng một **Dockerfile có lỗi** (`report/fixtures/Dockerfile.vulnerable`) cùng bộ luật Rego để kiểm chính sách trong môi trường lab. Phần thân chỉ ghi **mã điều khoản** — **ý nghĩa (yêu cầu gì) của mọi điều khoản tra tại Phụ lục C**.
 
 - GDPR (EU) 2016/679 — Điều 5, 25, 32; PCI-DSS — Yêu cầu 2.2, 3.4, 8.2.1; OWASP Top 10 2021 & CWE — A03/CWE-89 (F01), A01/CWE-158 + CWE-180 (F02); CIS Docker Benchmark — 4.1, 4.9, 4.10, 5.3, 5.4, 5.8, 5.12 (F04); OCI image-spec, NIST SP 800-190, NIST SSDF (SP 800-218), SLSA (chuỗi cung ứng — chỉ *tham chiếu*, không tuyên bố đạt mức).
 
