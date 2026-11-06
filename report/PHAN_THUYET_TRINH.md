@@ -70,6 +70,55 @@
 - **[Cue]** Chiếu **Hình quy trình DevSecOps** (ánh xạ F01–F04 lên pha).
 - 4 tình huống: F01/F02 (code) · F03 (vận hành) · F04 (cấu hình container).
 
+### A6. Pipeline tích hợp Git — chạy thế nào, output ra sao
+- **Một câu:** mọi cổng trên sơ đồ gói trong **một script** `devsecops/pipeline.sh`; **Git tự gọi** nó mỗi khi sửa lỗi/đổi mã, nên máy thành viên và GitHub chạy **đúng cùng một bộ cổng**.
+- **Ai kích hoạt:**
+  - `git commit` → hook **pre-commit**: cổng tĩnh trên phần đã `git add` (Gitleaks, Semgrep, Conftest) — ~20–60 s.
+  - `git push` → hook **pre-push**: Code → Build → Test → Release → Deploy (chỉ kiểm chính sách) trên các commit sắp đẩy.
+  - push lên GitHub / pull request vào `main` → **GitHub Actions** `devsecops.yml`: đủ **7 pha**, mỗi pha một step, triển khai thật trên máy ảo rồi chạy Operate/Monitor.
+  - **Cơ chế chặn:** Git chạy hook **trước** khi commit/push; script trả **exit 1** → Git **hủy** thao tác. Trên GitHub, step exit 1 → **đỏ ❌**, các step sau không chạy.
+- **Bên trong script (5 bước):**
+  1. **Xác định phần thay đổi** — pre-commit: so phần đã `git add` với HEAD; pre-push: so với commit đang có trên GitHub; CI: so với commit trước/nhánh `main`; chạy tay: so với bản gốc v20.2.0.
+  2. **Lọc** — chỉ sửa tài liệu → chỉ chạy pha Code; sửa mã (`routes/`, `lib/`…) hoặc hạ tầng (Dockerfile, compose, policy) → chạy đủ.
+  3. **Chạy các pha theo đúng sơ đồ**, mỗi cổng là một công cụ chạy trong Docker, ghim phiên bản như báo cáo:
+     - **Code** — Gitleaks (secret trong dòng **được thêm**) · Semgrep (cảnh báo SAST **mới**).
+     - **Build** — `conftest verify` (26 ca) · Conftest `docker_security.rego` (F04) · `tsc` · `docker build` → image **ứng viên** `juice-shop:ci-<sha>`.
+     - **Test** — node:test + Supertest, 11 ca F01/F02.
+     - **Release** — Trivy (CVE CRITICAL **mới**, ngoài 11 CVE đã chấp nhận) · Dockle (CIS) → đạt cả hai mới **gắn tag triển khai** `hotfix-f01-f02`.
+     - **Deploy** — Conftest `compose.rego` (F03) · `docker compose up` lên 3102.
+     - **Operate** — `runtime.rego` trên `docker inspect` · qua proxy: `/`→200, `/metrics`→**404**, header `nosniff`/`no-referrer`, đăng nhập dồn dập → **429**.
+     - **Monitor** — Prometheus target UP + luật `HighClientErrorRate` đã nạp.
+  4. **In bảng kết quả** — mỗi cổng một dòng `Pha · Cổng · Trạng thái`; FAIL thì in kèm 20 dòng log ngay bên dưới.
+  5. **Trả mã thoát** — 0 = đạt (WARN không chặn), 1 = có FAIL. Pha nào FAIL thì các pha sau **SKIP** (không build/deploy bản lỗi); riêng pre-commit chạy hết cổng tĩnh để thấy mọi lỗi một lần.
+- **Output khi đạt** (chạy thật trên mã hiện tại):
+  ```
+  ══ DevSecOps pipeline · main@838b2531b ══
+    Code     Semgrep — SAST, chặn cảnh báo mới               PASS
+    Build    docker build — juice-shop:ci-838b2531b          PASS
+    Test     node:test — test/api/security                   PASS
+    Release  Gắn tag phát hành juice-shop:hotfix-f01-f02     PASS
+    Operate  F03 — /metrics bị chặn (404)                    PASS
+    …
+  ══ Tổng: 20 PASS · 1 WARN · 0 FAIL · 0 SKIP — log: .devsecops/ ══
+  ✓ Pipeline đạt.
+  ```
+- **Output khi bị chặn** (commit đưa lại lỗi F01 + khóa giả):
+  ```
+    Code     Gitleaks — quét secret                          FAIL  → .devsecops/01-Code.log
+             │ WRN leaks found: 1   RuleID: generic-api-key
+    Code     Semgrep — SAST, chặn cảnh báo mới               FAIL  → .devsecops/02-Code.log
+             │ NEW  routes/login.ts:34  [express-sequelize-injection] …
+  ✗ Pipeline FAIL — sửa lỗi ở cổng FAIL rồi chạy lại.        ← commit bị hủy
+  ```
+- **Đọc trạng thái:** **PASS** đạt · **WARN** cần biết nhưng **không chặn** (vd 5 tệp sửa ngoài 2 route không vào image hotfix — nói thẳng, đó là giới hạn) · **FAIL** vi phạm, **chặn** · **SKIP** không liên quan thay đổi hoặc pha trước đã FAIL.
+- **Output lưu ở đâu:** log từng cổng `.devsecops/NN-<Pha>.log`; bảng tổng `.devsecops/summary.md`; trên GitHub: mỗi pha một step ✅/❌, bảng ở trang *Summary*, log tải ở *Artifacts*.
+- **Chốt khi bị hỏi:**
+  - *"Juice Shop đầy lỗ hổng cố ý, sao commit được?"* — cổng **chỉ chặn cái mới**: Semgrep so với bản gốc, Gitleaks chỉ quét dòng được thêm, Trivy bỏ qua danh sách rủi ro đã chấp nhận (`.trivyignore`).
+  - *"Bản lỗi có lên 3102 được không?"* — không: Build chỉ tạo tag **ứng viên**; compose triển khai tag `hotfix-f01-f02`, chỉ được gắn khi **Test + Trivy + Dockle đều đạt**.
+  - *"Sao cần cả hook lẫn CI?"* — hook cho phản hồi **sớm** trên máy (shift-left) nhưng bỏ qua được bằng `--no-verify`; **GitHub Actions** là cổng không bỏ qua được.
+  - *"Có tự triển khai lên môi trường thật không?"* — **chưa có CD**: Deploy trên Actions là lên máy ảo tạm để kiểm Operate/Monitor; cập nhật 3102 là lệnh tay.
+- **[Cue] Demo** theo `devsecops/DEMO.md` (PowerShell): commit lỗi F01 bị chặn → hạ tầng sai F03/F04 bị chặn → chạy đủ 7 pha → mở tab Actions (lần xanh + lần đỏ khi bỏ qua hook). Dọn: `& $GB devsecops/demo-cleanup.sh`.
+
 ---
 
 ## B. BỐN LỖI (mỗi thành viên)
@@ -96,7 +145,7 @@
 - **Phát hiện (quét kiểu gì):** rà bề mặt phơi nhiễm khi dựng giám sát — **thử `/metrics` từ host** → 200 không cần auth (động, kiểu DAST).
 - **Xử lý (sửa kiểu gì):** backend vào **mạng internal**, proxy trả **404** cho `/metrics` (không xóa — giám sát nội bộ vẫn dùng); chống tái diễn tự động bằng **Policy as Code** `compose.rego` (NET-02) + cảnh báo `HighClientErrorRate` fire thật.
 - Pha **Deploy → Operate**.
-- **Demo (vừa chạy vừa nói):** `python report/demos/tv3_f03_metrics.py`. Trước vá `3100/metrics` → **200**, cuộn cho thấy số người dùng/ví bị lộ. Sau vá `3102/metrics` → **404**; cổng backend cũ **refused**; nhưng `docker exec` proxy đọc metrics nội bộ → **vẫn được** ("giám sát trong mạng vẫn dùng"). Mở **Grafana**: số liệu thật + cảnh báo **FIRING** khi mô phỏng dò đăng nhập.
+- **Demo (vừa chạy vừa nói):** `python report/demos/tv3_f03_metrics.py`. Trước vá `3100/metrics` → **200**, cuộn cho thấy số người dùng/ví bị lộ. Sau vá `3102/metrics` → **404**; cổng backend cũ **refused**; nhưng `docker exec` proxy đọc metrics nội bộ → **vẫn được** ("giám sát trong mạng vẫn dùng"). Bảng cuối: **Conftest `compose.rego`** — compose trước vá **exit 1** (`F03 NET-02`), `docker-compose.yml` **exit 0**. Mở **Grafana**: số liệu thật + cảnh báo **FIRING** khi mô phỏng dò đăng nhập.
 
 **F04 — Policy as Code container — *Hồ Anh Vũ***
 - **Lỗi:** image gốc **không sai**; **fixture cố ý** `report/fixtures/Dockerfile.vulnerable` phạm **4 nhóm**: root (không USER), EXPOSE 22/3306, secret trong ENV, thiếu nhãn OCI.
@@ -124,15 +173,19 @@
 
 ## D. KẾT LUẬN
 - Trọn vòng **phát hiện – sửa – kiểm chứng** cho 4 tình huống, viết thành mã, chạy được; trải Code/Test → Build/Deploy → Operate.
-- Ranh giới: repo Juice Shop gốc **đã có** CI/CD, CodeQL, SBOM; đóng góp nhóm là **kiểm soát bổ sung, hướng dữ liệu cá nhân** trong phạm vi 4 tình huống.
+- Các kiểm soát **chạy tự động theo Git**: hook pre-commit/pre-push trên máy + GitHub Actions đủ 7 pha (mục A6) — mỗi lần sửa lỗi/đổi mã đều qua cùng một bộ cổng.
+- Ranh giới: repo Juice Shop gốc **đã có** CI/CD, CodeQL, SBOM; đóng góp nhóm là **kiểm soát bổ sung, hướng dữ liệu cá nhân** trong phạm vi 4 tình huống, gắn vào quy trình Git. **Chưa có CD** lên môi trường thật (triển khai 3102 là lệnh tay).
 
 ## Lưu ý thuật ngữ
 - **lỗ hổng** (không "điểm yếu"); **Poison Null Byte** (không IDOR); **truy vấn tham số**; **Policy as Code**.
 - Semgrep/Trivy/Gitleaks = **luật có sẵn**; chỉ **Conftest + kiểm thử** là nhóm tự viết.
 - PaC = văn bản *trước build*; CaC = thực thể *đang chạy*. `verify` kiểm **luật**; `test` kiểm **file**.
+- **Cổng** (gate) = một bước kiểm có PASS/FAIL; **pipeline** = các cổng xếp theo pha; **hook** = script Git tự chạy trước commit/push; **image ứng viên** (`ci-<sha>`) ≠ **image phát hành** (`hotfix-f01-f02`).
 
 ---
 
 ## Phụ lục — Lệnh chạy các công cụ
 
 Đã tách sang **`report/scanSAC.md`** — lệnh chạy từng công cụ (slide A7) theo pha, kèm ghi chú Trivy/Dockle qua Docker và mục Prometheus.
+
+Pipeline tích hợp Git (mục A6): cách hoạt động + bảng cổng ở **`devsecops/README.md`**; kịch bản test/demo từng bước (PowerShell) + script dọn ở **`devsecops/DEMO.md`**.

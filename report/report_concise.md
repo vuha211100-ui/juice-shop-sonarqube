@@ -54,7 +54,7 @@ Người dùng đăng ký qua `POST /api/Users` và đăng nhập qua `POST /res
 
 ## 2.2. Nghiệp vụ tải tệp tài liệu
 
-Ứng dụng cho phép tải tệp tài liệu trong thư mục `ftp/` qua `GET /ftp/:file`, chỉ cho phép đuôi `.md`/`.pdf`. Route `routes/fileServer.ts` xử lý yêu cầu này. Thư mục `ftp/` còn chứa một số tệp **không nên để tải về** (bản sao lưu cấu hình, mã giảm giá…). Nếu bộ lọc đuôi file bị qua mặt, người dùng có thể đọc các tệp nhạy cảm đó — và đây là gốc của lỗi **F02**.
+Thư mục `ftp/` gắn trực tiếp với bước **đặt đơn và thanh toán**: khi khách thanh toán xong, `routes/order.ts` sinh hóa đơn PDF `order_<mã đơn>.pdf` vào `ftp/`, ghi email khách, mã đơn, ngày đặt, danh sách sản phẩm và tổng tiền; giao diện chuyển khách tới `GET /ftp/order_<mã đơn>.pdf` để xem hóa đơn, và trang lịch sử đơn hàng cũng mở hóa đơn qua đường này. Cùng route còn phục vụ tài liệu công khai như điều khoản sử dụng `legal.md`. Route `routes/fileServer.ts` xử lý mọi yêu cầu `GET /ftp/:file` và chỉ cho phép đuôi `.md`/`.pdf`, nhưng **không kiểm JWT**: hóa đơn là dữ liệu cá nhân của khách mà không được ràng buộc chủ sở hữu như giỏ hàng hay đơn hàng, chỉ dựa vào mã đơn khó đoán, trong khi `/ftp` vẫn liệt kê toàn bộ thư mục. Thư mục `ftp/` còn chứa một số tệp **không nên để tải về** (bản sao lưu cấu hình, mã giảm giá…). Nếu bộ lọc đuôi file bị qua mặt, người dùng có thể đọc các tệp nhạy cảm đó — và đây là gốc của lỗi **F02**. Bản vá F02 xử lý lỗi vượt bộ lọc này; đưa hóa đơn ra sau kiểm tra JWT và chủ sở hữu đơn hàng là hướng mở rộng.
 
 # 3. Môi trường triển khai và yêu cầu an toàn tối thiểu
 
@@ -232,7 +232,7 @@ Câu lệnh được biên dịch trước và giá trị truyền riêng, nên 
 
 ### Trước khi sửa
 
-Route `routes/fileServer.ts` phục vụ tệp trong thư mục `ftp/` qua `GET /ftp/:file`. Ứng dụng kiểm tra hậu tố `.md`/`.pdf` (ngoài ra có ngoại lệ cho `incident-support.kdbx`), sau đó mới phục vụ:
+Route `routes/fileServer.ts` phục vụ tệp trong thư mục `ftp/` (hóa đơn sinh ra khi thanh toán và tài liệu công khai, mục 2.2) qua `GET /ftp/:file`. Ứng dụng kiểm tra hậu tố `.md`/`.pdf` (ngoài ra có ngoại lệ cho `incident-support.kdbx`), sau đó mới phục vụ:
 
 ```typescript
 if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
@@ -267,15 +267,35 @@ Sau khi sửa, hai payload `...%2500.md` bị từ chối **403**, trong khi t�
 
 ## 5.3. F03 — Lộ endpoint /metrics không xác thực
 
+Khác F01/F02 (lỗi trong mã nguồn), F03 là **lỗi cấu hình triển khai**: mã ứng dụng giữ nguyên, rủi ro nằm ở file `docker-compose` để backend publish cổng ra host. Vì vậy, giống F04 dùng `docker_security.rego` cho Dockerfile, F03 **cần một chính sách Rego cho file compose** (`policy/compose.rego`) để phát hiện cấu hình sai ngay từ file, trước khi triển khai.
+
 ### Trước khi sửa
 
-Juice Shop mở sẵn `/metrics` (Prometheus) mà không yêu cầu đăng nhập, xuất ra các chỉ số như số người dùng, số đơn hàng và tổng số dư ví. Khi container publish thẳng cổng ứng dụng, **mọi chủ thể truy cập tới host** đều gọi được endpoint này và đọc số liệu vận hành — vi phạm nguyên tắc *giảm bề mặt tấn công và tối thiểu phơi bày*. Đây là một rủi ro thuộc khâu **triển khai/vận hành**.
+Juice Shop mở sẵn `/metrics` (Prometheus) mà không yêu cầu đăng nhập, xuất ra các chỉ số như số người dùng, số đơn hàng và tổng số dư ví. Khi container publish thẳng cổng ứng dụng, **mọi chủ thể truy cập tới host** đều gọi được endpoint này và đọc số liệu vận hành — vi phạm nguyên tắc *giảm bề mặt tấn công và tối thiểu phơi bày*. Đây là một rủi ro thuộc khâu **triển khai/vận hành**. Cấu hình trước khi vá (`report/fixtures/compose.before-f03.yml`, rút gọn) đã có proxy nhưng backend vẫn publish cổng:
 
-**Phát hiện.** Demo `demos/tv3_f03_metrics.py` gọi `/metrics` từ host; trước khi sửa, endpoint trả về 200 kèm hàng trăm dòng số liệu (@fig(tv3)).
+```yaml
+services:
+  proxy:
+    ports: ["127.0.0.1:3102:8080"]
+    labels: {lab.exposure: edge}
+  juice-shop:
+    ports: ["127.0.0.1:3101:3000"]   # backend publish cổng host -> vòng qua proxy
+```
+
+**Những cách kiểm tra sơ sài dễ bị qua mặt.** Chỉ chặn `/metrics` ở proxy là chưa đủ: khi backend còn cổng host, người dùng gọi thẳng `127.0.0.1:3101/metrics` và vòng qua mọi luật đặt ở proxy. Kiểm tra kiểu "cổng chỉ bind loopback" cũng không bắt được lỗi này, vì `127.0.0.1:3101` vẫn là loopback. Còn gọi HTTP tới `/metrics` chỉ thấy lỗi **sau khi đã triển khai**, tức là dữ liệu đã lộ. Muốn chặn từ gốc thì phải có luật đọc chính file compose và chạy trước `docker compose up`.
+
+**Rủi ro nếu để nguyên, không vá.** Mỗi hệ quả gắn với một yêu cầu an toàn cụ thể:
+
+- **Lộ số liệu vận hành:** số người dùng, số đơn hàng, tổng số dư ví… mở cho mọi chủ thể truy cập được host, trái với yêu cầu *theo mặc định không mở dữ liệu cho số người không xác định* (GDPR Điều 25(2)).
+- **Vô hiệu hóa kiểm soát ở proxy:** mọi route khác cũng tới được qua cổng backend, nên giới hạn tốc độ đăng nhập đặt ở proxy bị vòng qua và kẻ tấn công có thể dò mật khẩu không giới hạn.
+
+**Phát hiện.** F03 được phát hiện ở hai lớp. Ở **mức cấu hình**, Conftest chạy `compose.rego` (luật `F03 NET-02`) trên file compose và chặn service backend có khóa `ports`; luật này là một cổng của pha Deploy trong pipeline, chạy trước `docker compose up`. Ở **mức vận hành**, demo `demos/tv3_f03_metrics.py` gọi `/metrics` từ host; trước khi sửa, endpoint trả về 200 kèm hàng trăm dòng số liệu (@fig(tv3)).
 
 ### Sau khi sửa
 
-Hướng xử lý là bỏ cổng host của backend và chỉ để reverse proxy mở cổng loopback; tại proxy, `/metrics` bị chặn và tốc độ đăng nhập bị giới hạn:
+Việc xử lý gồm **hai phần tách bạch**: (1) **sửa chính cấu hình triển khai** (proxy và file compose), và (2) **viết chính sách kiểm tra tự động** (`compose.rego`) để chống tái diễn. Conftest đánh giá file compose theo luật Rego, trả PASS/FAIL kèm lý do và mã thoát tương ứng; việc sửa cấu hình được thực hiện riêng trong `docker-compose.yml` và `nginx.conf`.
+
+**(1) Sửa cấu hình triển khai.** Bỏ cổng host của backend và chỉ để reverse proxy mở cổng loopback; tại proxy, `/metrics` bị chặn và tốc độ đăng nhập bị giới hạn:
 
 ```nginx
 location = /metrics { return 404; }
@@ -283,17 +303,49 @@ location = /rest/user/login { limit_req zone=login burst=5 nodelay; limit_req_st
 ```
 
 ```yaml
+proxy:
+  ports: ["127.0.0.1:3102:8080"]
+  labels: {lab.exposure: edge}       # dịch vụ biên duy nhất được publish cổng
 juice-shop:
-  networks: [backend]            # không còn khóa ports -> không truy cập trực tiếp từ host
+  labels: {lab.exposure: internal}   # BỎ khóa ports -> không truy cập trực tiếp từ host
+  networks: [backend]
 networks:
   backend: { internal: true }
 ```
 
 Sau khi sửa, `/metrics` đi qua proxy trả về 404 và cổng backend cũ bị từ chối kết nối **từ host**. Đây là chặn ở lối vào từ bên ngoài chứ không phải khóa tuyệt đối: trong mạng internal, hệ thống giám sát vẫn đọc được metrics đúng mục đích (@fig(tv3)).
 
-!fig[tv3.png](Demo F03: /metrics lộ khi truy cập trực tiếp, bị chặn sau khi sửa){width=15}
+**(2) Viết chính sách thành mã (Policy as Code).** Bộ luật Rego (`policy/compose.rego`) đọc file docker-compose (Conftest tự phân tích YAML) và duyệt từng service. Luật cốt lõi của F03 là **NET-02** theo kiểu *mặc định từ chối*: service nào có `ports` mà không tự khai nhãn `lab.exposure: edge` thì bị chặn, nên chỉ dịch vụ biên (reverse proxy) được nhận kết nối từ host. Luật đọc được cả ba dạng khai báo cổng của Compose (`"127.0.0.1:3102:8080"`, số `3000`, đối tượng `{target, published, host_ip}`), nên không lách được bằng cách đổi cú pháp. Đoạn luật chính:
 
-**Nguyên tắc/tiêu chuẩn đối chiếu:** GDPR Điều 25(2), 32(1)(b). **Pha DevSecOps:** Deploy → Operate. **Kiểm soát (Security as Code › Policy as Code):** luật `compose.rego` chặn mọi cấu hình để backend mở cổng host (mục 4).
+```rego
+edge(svc) if object.get(object.get(svc, "labels", {}), "lab.exposure", "") == "edge"
+
+deny contains msg if {
+  some name, svc in input.services
+  count(ports(svc)) > 0     # service có publish cổng host
+  not edge(svc)             # nhưng không phải dịch vụ biên
+  msg := sprintf("[F03 NET-02] service '%s' publishes ports but is not an edge service ...", [name])
+}
+```
+
+Bộ luật có 6 ca kiểm thử (`policy/compose_test.rego`), tất cả đạt, trong đó có ca "backend publish `127.0.0.1:3101` phải bị chặn dù đã bind loopback". Mã nguồn đầy đủ ở **Phụ lục B**.
+
+Các luật và tiêu chuẩn đối chiếu:
+
+Table: Luật kiểm tra cấu hình docker-compose — luật yêu cầu gì và dựa trên chuẩn nào
+| Luật | Luật yêu cầu gì (chặn khi vi phạm) | Tiêu chuẩn (ý nghĩa xem Phụ lục C) |
+|---|---|---|
+| F03 NET-02 | Service **không** mang nhãn `lab.exposure: edge` thì **không** được publish cổng host, kể cả khi bind loopback (bắt buộc, `deny`) | GDPR Đ.25(2), 32(1)(b) |
+| NET-01 | Cổng đã publish **phải** bind `127.0.0.1`, không mở ra mọi giao diện mạng | GDPR Đ.32 |
+| CIS 5.4 / 5.31 | **Không** chạy `privileged`; **không** mount `/var/run/docker.sock` | CIS Docker 5.4, 5.31 |
+| INLINE-SECRET | **Không** đặt mật khẩu/token trực tiếp trong `environment` (cho phép biến `*_FILE` trỏ tới secret) | PCI-DSS 8.2.1; GDPR Đ.32 |
+| Cảnh báo (`warn`) | Nên `cap_drop: [ALL]` và `read_only: true`; chỉ cảnh báo, không chặn | CIS Docker 5.3, 5.12 |
+
+Trong pipeline, luật chạy ở cổng pha Deploy (`conftest test docker-compose.yml -p policy --namespace compose`); vi phạm thì exit 1 và pipeline **không chạy** `docker compose up`. Cùng ý NET-02 được kiểm lại ở pha Operate trên container đang chạy (`report/policy/runtime.rego`, đọc kết quả `docker inspect`), phòng trường hợp container được khởi chạy ngoài pipeline. Demo `tv3_f03_metrics.py` chạy Conftest trên hai cấu hình: `report/fixtures/compose.before-f03.yml` bị chặn đúng một luật `F03 NET-02` (exit 1), còn `docker-compose.yml` sau vá đạt (exit 0, chỉ một cảnh báo CIS 5.12) (@fig(tv3)).
+
+!fig[tv3.png](Demo F03: /metrics lộ khi truy cập trực tiếp, bị chặn sau khi sửa; Conftest chặn cấu hình compose trước vá){width=15}
+
+**Nguyên tắc/tiêu chuẩn đối chiếu:** GDPR Điều 25(2), 32(1)(b). **Pha DevSecOps:** Deploy → Operate. **Kiểm soát (Security as Code › Policy as Code):** luật NET-02 trong `compose.rego` chặn ở pha Deploy mọi cấu hình để backend mở cổng host; `runtime.rego` kiểm lại trên container đang chạy ở pha Operate.
 
 ## 5.4. F04 — Sai cấu hình an toàn của container
 
@@ -404,6 +456,7 @@ Table: Tra cứu — mỗi tiêu chuẩn/điều khoản tham chiếu yêu cầu
 | CIS Docker 5.4 | Không chạy container ở chế độ `privileged` |
 | CIS Docker 5.8 | Chỉ mở đúng cổng cần thiết (không mở cổng quản trị/CSDL) |
 | CIS Docker 5.12 | Gắn hệ thống tệp gốc ở chế độ chỉ đọc (`read_only`) |
+| CIS Docker 5.31 | Không mount Docker socket (`/var/run/docker.sock`) vào container |
 | OCI image-spec | Chuẩn định dạng ảnh container + nhãn metadata nguồn gốc |
 | SLSA | Khung toàn vẹn chuỗi cung ứng. Mức Build L1 yêu cầu provenance được *sinh tự động* và phân phối; nhãn OCI tự khai trong báo cáo **chưa đạt** L1, chỉ dùng để tham chiếu |
 | NIST SP 800-190 | Hướng dẫn an toàn cho container |
