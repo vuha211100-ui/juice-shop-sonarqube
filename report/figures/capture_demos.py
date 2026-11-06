@@ -77,9 +77,9 @@ def _cl_metrics(ln):            # tv3 (F03)
     if 'LỘ' in ln:
         return 'hl'
     if any(k in ln for k in ('chặn tại proxy', 'không còn đường vòng', 'mạng internal',
-                             'vẫn hoạt động', 'đọc được')):
+                             'vẫn hoạt động', 'đọc được', 'đúng:')):
         return 'ok'
-    return 'fail' if ('KHÔNG' in ln or 'CÒN ĐƯỜNG' in ln) else 'out'
+    return 'fail' if any(k in ln for k in ('KHÔNG', 'CÒN ĐƯỜNG', 'SAI', 'LỖI')) else 'out'
 
 
 def _cl_policy(ln):             # tv4 (F04)

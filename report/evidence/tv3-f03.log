@@ -1,7 +1,7 @@
 # EVIDENCE tv3-f03
 # command : python report/demos/tv3_f03_metrics.py
 # cwd     : E:\banhoaqua\juice-shop
-# time    : 2026-11-04 18:01
+# time    : 2026-11-06 21:09
 # exit    : 0
 # ----- combined stdout+stderr -----
 Môi trường  Truy cập                                           Kết quả   Kết luận
@@ -12,3 +12,8 @@ sau vá      GET 127.0.0.1:3102/ (trang chủ)                    200       ứn
 sau vá      GET 127.0.0.1:3101/metrics (cổng backend cũ)       refused   không còn đường vòng
 sau vá      docker inspect cổng host của backend               không có  backend chỉ ở mạng internal
 sau vá      giám sát nội bộ: proxy -> juice-shop:3000/metrics  đọc được  393 dòng, chỉ trong mạng internal
+
+Cấu hình compose                   Exit  Luật bị chặn (FAIL)    Kết luận
+---------------------------------  ----  ---------------------  --------------------
+compose.before-f03.yml (trước vá)  1     F03 NET-02 juice-shop  đúng: gate chặn
+docker-compose.yml (sau vá)        0     -                      đúng: đạt chính sách

@@ -1,4 +1,5 @@
-# Fixture F03: cấu hình triển khai TRƯỚC khi vá (backend publish 127.0.0.1:3101). Chỉ dùng để kiểm thử policy.
+# Fixture F03: cấu hình triển khai TRƯỚC khi vá (backend publish 127.0.0.1:3101). Chỉ dùng để kiểm thử policy
+# (demo tv3_f03_metrics.py): conftest phải FAIL đúng một luật F03 NET-02 trên service juice-shop.
 name: juice-report-hardened
 services:
   proxy:
@@ -12,6 +13,7 @@ services:
     mem_limit: 64m
     pids_limit: 32
     ports: ["127.0.0.1:3102:8080"]
+    labels: {lab.exposure: edge}          # giữ như bản vá: chỉ còn khác biệt F03 là backend publish 3101
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./v2/proxy-start.sh:/etc/nginx/lab-start.sh:ro

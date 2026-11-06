@@ -166,7 +166,7 @@ Hoặc chạy từng cái: `python report/demos/tv1_f01_sqli.py` …
 |---|---|---|
 | **tv1 — F01 SQLi** | payload `' OR 1=1--` được cấp token quản trị | mọi payload bị **401** |
 | **tv2 — F02 Poison Null Byte** | đọc được `package.json.bak`, `coupons_2013.md.bak` | payload null byte nhận **403**, tệp `.md` hợp lệ vẫn tải |
-| **tv3 — F03 /metrics** | `3100/metrics` → **200**, lộ số liệu | `3102/metrics` → **404**, cổng `3101` **refused**; giám sát nội bộ vẫn đọc được |
+| **tv3 — F03 /metrics** | `3100/metrics` → **200**, lộ số liệu | `3102/metrics` → **404**, cổng `3101` **refused**; giám sát nội bộ vẫn đọc được; Conftest `compose.rego`: compose trước vá **exit 1** (`F03 NET-02`), `docker-compose.yml` **exit 0** |
 | **tv4 — F04 policy** | `Dockerfile.vulnerable` bị chặn **4 nhóm luật** (6 vi phạm) | bản vá, hotfix và **Dockerfile gốc đều đạt chính sách**; `conftest verify` = **19/19** |
 
 ---

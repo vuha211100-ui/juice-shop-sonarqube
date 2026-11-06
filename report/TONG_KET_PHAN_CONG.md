@@ -223,7 +223,7 @@ docker @CF test report/fixtures/Dockerfile.vulnerable --parser dockerfile -p pol
 docker @CF test report/fixtures/Dockerfile.remediated --parser dockerfile -p policy --namespace dockerfile --no-color  # bản vá của fixture: exit 0 (1 warn)
 docker @CF test Dockerfile --parser dockerfile -p policy --namespace dockerfile --no-color                    # Dockerfile gốc: exit 0
 docker @CF test deploy/Dockerfile.hotfix --parser dockerfile -p policy --namespace dockerfile --no-color      # image đã vá: exit 0
-docker @CF test report/fixtures/compose.before-f03.yml -p policy --namespace compose --no-color              # F03 trước vá: FAIL (backend mở cổng)
+docker @CF test report/fixtures/compose.before-f03.yml -p policy --namespace compose --no-color              # F03 trước vá: exit 1, đúng 1 FAIL F03 NET-02 (juice-shop mở 3101)
 docker @CF test docker-compose.yml -p policy --namespace compose --no-color                                  # F03 sau vá: exit 0
 ```
 
@@ -311,7 +311,7 @@ docker run --rm --network juice-app_backend curlimages/curl:latest sh -c 'for i 
 ```powershell
 python report/demos/tv1_f01_sqli.py            # Thắng   — 3100 cấp token · 3102 401
 python report/demos/tv2_f02_pathtraversal.py   # Thúy    — trước 200 + .bak · sau 403
-python report/demos/tv3_f03_metrics.py         # Quốc Anh — 3100/metrics 200 · 3102 404 · 3101 refused
+python report/demos/tv3_f03_metrics.py         # Quốc Anh — 3100/metrics 200 · 3102 404 · 3101 refused · compose trước vá exit 1 · sau vá exit 0
 python report/demos/tv4_f04_policy.py          # Vũ      — verify 19/19 · fixture exit 1 · gốc/đã vá exit 0
 ```
 
