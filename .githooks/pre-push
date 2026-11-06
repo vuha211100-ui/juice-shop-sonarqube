@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# DevSecOps — cổng trước khi push: chạy đủ Code → Build → Test → Release → Deploy (chỉ kiểm chính sách)
+# trên các commit sắp đẩy (remote..HEAD). Đạt thì ghi dấu theo SHA, nên đẩy cùng commit lên nhánh
+# thứ hai (main + fix/f01-f04) không chạy lại.
+# Bỏ qua khẩn cấp: git push --no-verify  (CI vẫn chặn lại ở GitHub Actions)
+remote=${1:-origin}
+top=$(git rev-parse --show-toplevel)
+head=$(git rev-parse HEAD)
+zero=0000000000000000000000000000000000000000
+base="" any=0
+while read -r lref lsha rref rsha; do
+  [ "$lsha" = "$zero" ] && continue                       # xóa nhánh trên remote: không cần kiểm
+  any=1
+  [ "$lsha" != "$head" ] && echo "pre-push: $lref không phải HEAD đang checkout — pipeline kiểm HEAD ($head)"
+  if [ "$rsha" != "$zero" ] && git cat-file -e "$rsha^{commit}" 2>/dev/null; then
+    base=$rsha
+  else                                                    # nhánh mới: so với main của remote (không có thì v20.2.0)
+    base=$(git merge-base "$head" "refs/remotes/$remote/main" 2>/dev/null || true)
+  fi
+done
+[ "$any" = 0 ] && exit 0
+if [ -f "$top/.devsecops/pass-$head" ] && [ -z "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "pre-push: $head đã đạt pipeline trước đó — bỏ qua."; exit 0
+fi
+args=(--no-apply --mark)
+[ -n "$base" ] && args+=(--base "$base")
+exec bash "$top/devsecops/pipeline.sh" "${args[@]}" code build test release deploy

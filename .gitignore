@@ -75,3 +75,6 @@ config/*.yml
 # Misc
 .playwright-mcp/
 cypress/screenshots/
+
+# DevSecOps pipeline: log + kết quả từng lần chạy (devsecops/pipeline.sh)
+.devsecops/

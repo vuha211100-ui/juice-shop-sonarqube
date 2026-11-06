@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# DevSecOps — cổng trước khi commit (shift-left, chạy nhanh, chỉ cổng tĩnh trên phần đã `git add`):
+#   Code:   Gitleaks (secret trong staging) + Semgrep (chặn cảnh báo SAST mới so với HEAD)
+#   Build:  Conftest Dockerfile + conftest verify   (khi đổi mã/hạ tầng)
+#   Deploy: Conftest docker-compose.yml             (khi đổi mã/hạ tầng)
+# Bỏ qua khẩn cấp: git commit --no-verify  (CI vẫn chặn lại ở GitHub Actions)
+exec bash "$(git rev-parse --show-toplevel)/devsecops/pipeline.sh" --staged --quick code build deploy

@@ -4,3 +4,7 @@
 # File triển khai chạy trong container Linux: luôn giữ LF
 deploy/** text eol=lf
 docker-compose.yml text eol=lf
+
+# Pipeline DevSecOps + Git hook chạy bằng bash (Git Bash / Linux CI): luôn giữ LF
+devsecops/** text eol=lf
+.githooks/** text eol=lf
