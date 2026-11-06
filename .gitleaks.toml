@@ -13,3 +13,10 @@ regexTarget = "line"
 regexes = [
   '''MIIEoFAKEdemoKeyNotReal''',
 ]
+
+[[allowlists]]
+description = "Lenh demo trong tai lieu (DEMO.md, scanSAC.md) ghi khoa AWS GIA vao login.ts; dong that trong login.ts van bi chan"
+regexTarget = "line"
+regexes = [
+  '''Add-Content routes/login\.ts 'export const awsKey''',
+]
