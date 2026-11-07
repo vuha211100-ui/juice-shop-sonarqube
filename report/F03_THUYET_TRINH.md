@@ -123,6 +123,25 @@ Nói: "Không đọc file nữa mà hỏi thẳng Docker container đang chạy 
 
 **B4 (tùy chọn, hiệu ứng mạnh nhưng sửa file thật):** thêm `ports: ["127.0.0.1:3101:3000"]` vào service `juice-shop` trong `docker-compose.yml`, chạy (Git Bash) `bash devsecops/pipeline.sh --full --no-apply deploy` → cổng "Conftest — docker-compose.yml" FAIL; **trả lại ngay**: `git checkout -- docker-compose.yml`. *(Chưa chạy thử bước này — tập trước nếu dùng; B1 cho kết quả tương đương mà an toàn.)*
 
+**B5. Quét cấu hình nginx — Conftest tìm ra lỗ vượt proxy bằng chữ hoa (mục 9.1)**
+
+Luật tạm `report/policy-nginx/nginx.rego` (parser `nginx` có sẵn trong Conftest): mỗi route nhạy cảm (`/metrics`, `/rest/user/login`) phải được bao bởi một `location ~*` (không phân biệt hoa thường), vì backend Express không phân biệt hoa thường. Đặt ở thư mục riêng nên **không đổi con số 19/19** của `conftest verify -p policy`.
+```powershell
+docker run --rm -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 test deploy/nginx.conf --parser nginx -p report/policy-nginx --namespace nginx --no-color
+```
+Output thật trên cấu hình hiện tại — **exit 1**:
+```
+FAIL - deploy/nginx.conf - nginx - [F03 NGINX-01] location '= /metrics' so khớp PHÂN BIỆT hoa thường, backend Express KHÔNG phân biệt -> '/METRICS' vượt luật proxy; dùng 'location ~* ^/metrics(/|$)'
+FAIL - deploy/nginx.conf - nginx - [F03 NGINX-01] location '= /rest/user/login' so khớp PHÂN BIỆT hoa thường, backend Express KHÔNG phân biệt -> '/REST/USER/LOGIN' vượt luật proxy; dùng 'location ~* ^/rest/user/login(/|$)'
+FAIL - deploy/nginx.conf - nginx - [F03 NGINX-01] location '^~ /metrics/' so khớp PHÂN BIỆT hoa thường, backend Express KHÔNG phân biệt -> '/METRICS' vượt luật proxy; dùng 'location ~* ^/metrics(/|$)'
+3 tests, 0 passed, 0 warnings, 3 failures, 0 exceptions
+```
+Quét bản đã sửa (`report/fixtures/nginx.f03-casefix.conf`, đổi `report/fixtures/nginx.f03-casefix.conf` vào chỗ `deploy/nginx.conf` trong lệnh): **exit 0**, `3 tests, 3 passed`. Luật có 4 ca kiểm thử: `conftest verify -p report/policy-nginx` → 4/4.
+
+Xác nhận bằng kiểm thử động (tùy chọn): `python report/demos/tv3_f03_bypass_scan.py` gửi các biến thể đường dẫn tới proxy 3102 → `/Metrics`, `/METRICS`, `/mEtRiCs` trả 200 kèm 393 dòng metrics; `/REST/USER/LOGIN`, `/Rest/User/Login`, `/rest/user/login/` không bị 429; đường chuẩn `/rest/user/login` bị 429 → "6 đường vượt proxy", exit 1. Truyền URL khác làm đối số để quét proxy đã sửa.
+
+Nói: "Conftest đọc chính file nginx và chỉ ra 3 location so khớp phân biệt hoa thường — trong khi backend không phân biệt — nên `/METRICS` vượt được. Kiểm thử động xác nhận đúng như vậy. Bản sửa dùng `~*` thì quét lại sạch."
+
 ### 3.3 Demo C (tùy chọn) — cảnh báo Grafana "FIRING"
 
 Luật thật trong `deploy/monitoring/alerts.yml`:
