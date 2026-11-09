@@ -16,6 +16,7 @@ docker run --rm -e SEMGREP_SEND_METRICS=off -v "${ROOT}:/src:ro" -v "${ROOT}/rep
   /src/routes /src/lib                  # quét hết routes + lib -> 38 cảnh báo / 25 tệp
 git checkout HEAD -- routes             # trả lại bản vá
 ```
+Trong pipeline, cổng Semgrep không chặn cả 38 cảnh báo này: `devsecops/semgrep-diff.mjs` so với bản gốc của cùng tệp và chỉ FAIL khi có cảnh báo **mới**.
 
 
 **Gitleaks (quét secret)** — quét commit vá của nhóm:
@@ -48,6 +49,8 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.
   image --scanners vuln --severity CRITICAL,HIGH juice-shop:hotfix-f01-f02
 #  gọn nhất cho demo: chỉ 12 lỗ hổng CRITICAL -> đổi thành  --severity CRITICAL
 #  bỏ --severity để xem đủ 173 CVE như báo cáo
+#  cổng Release của pipeline thêm: --severity CRITICAL --ignorefile devsecops/.trivyignore --exit-code 1
+#  -> bỏ qua 11 CVE CRITICAL có sẵn của image gốc, chỉ chặn CRITICAL mới
 ```
 **Dockle (CIS image)** — lint image thành phẩm:
 ```powershell
@@ -68,66 +71,63 @@ docker inspect juice-app-juice-shop-1 --format '{{json .HostConfig.PortBindings}
 docker inspect juice-app-juice-shop-1 --format 'User={{.Config.User}} CapDrop={{.HostConfig.CapDrop}} Sec={{.HostConfig.SecurityOpt}}'   # non-root · cap_drop · no-new-privileges
 ```
 
+**Prometheus + Grafana** — giám sát nội bộ:
+```powershell
+docker compose -f docker-compose.monitoring.yml up -d
+(Invoke-RestMethod http://127.0.0.1:9090/api/v1/targets).data.activeTargets | % { "$($_.labels.job) $($_.health)" }   # juice-shop up
+Start-Process http://127.0.0.1:3103          # Grafana: dashboard "Juice Shop — Giám sát vận hành"
+```
 
 
-### Integration — 4 lỗi F01–F04 đi qua quy trình DevSecOps
+
+### Integration — 4 lỗi F01–F04 đi qua quy trình DevSecOps (chỉ dùng `git commit` / `git push`)
 
 #### Chuẩn bị
 ```powershell
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
-$GB = "C:\Program Files\Git\bin\bash.exe"
 docker compose up -d
-docker compose -f docker-compose.monitoring.yml up -d
 git switch main
-git status -s routes deploy docker-compose.yml
-git config core.hooksPath
+git config core.hooksPath                 # -> .githooks
+git switch -c fix/demo-ci main
 ```
 
-#### F01 — SQL injection quay lại `login.ts`: bị chặn ở Code (Semgrep) và Test
+#### F01 — SQL injection quay lại `login.ts`: commit bị chặn (Code · Semgrep)
 ```powershell
 git restore --source 5658473cf -- routes/login.ts
 git add routes/login.ts
-git commit -m "demo F01"                  # -> Semgrep FAIL, commit bị hủy
-& $GB devsecops/pipeline.sh test          # -> Test FAIL (payload SQLi được 200)
+git commit -m "demo F01"                  # -> Semgrep FAIL (express-sequelize-injection), commit bị hủy
 git restore --staged --worktree routes/login.ts
 ```
 
-#### Lộ khóa bí mật trong mã: bị chặn ở Code (Gitleaks)
+#### Lộ khóa bí mật trong mã: commit bị chặn (Code · Gitleaks)
 ```powershell
 Add-Content routes/login.ts 'export const awsKey = "AKIAZ7Q4M2K9LX3VBN8P"'
 git add routes/login.ts
-git commit -m "demo secret"               # -> Gitleaks FAIL, commit bị hủy
+git commit -m "demo secret"               # -> Gitleaks FAIL (leaks found: 1), commit bị hủy
 git restore --staged --worktree routes/login.ts
 ```
 
-#### F02 — Poison Null Byte quay lại `fileServer.ts`: Semgrep không thấy, Test chặn
+#### F01 — bỏ qua pre-commit (`--no-verify`): push bị chặn (Code · Semgrep)
+```powershell
+git restore --source 5658473cf -- routes/login.ts
+git add routes/login.ts
+git commit -m "demo F01" --no-verify
+git push github fix/demo-ci               # -> pre-push: Semgrep FAIL, các pha sau SKIP, push bị hủy
+git reset --soft HEAD~1
+git restore --staged --worktree routes/login.ts
+```
+
+#### F02 — Poison Null Byte quay lại `fileServer.ts`: commit qua, push bị chặn (Test · node:test + Supertest)
 ```powershell
 git restore --source 5658473cf -- routes/fileServer.ts
 git add routes/fileServer.ts
-& $GB devsecops/pipeline.sh --staged --quick code   # -> Code PASS
-& $GB devsecops/pipeline.sh test                    # -> Test FAIL (đọc được .bak)
+git commit -m "demo F02"                  # -> PASS: Semgrep không thấy lỗi này
+git push github fix/demo-ci               # -> pre-push: Code, Build PASS; Test FAIL (đọc được .bak: 200 thay vì 403), push bị hủy
+git reset --soft HEAD~1
 git restore --staged --worktree routes/fileServer.ts
 ```
 
-#### F03 — Backend mở cổng ra host: bị chặn ở Deploy (Policy as Code `compose.rego`)
-```powershell
-$p = (Resolve-Path docker-compose.yml).Path; [IO.File]::WriteAllText($p, ([IO.File]::ReadAllText($p) -replace 'labels: \{lab\.exposure: internal\}.*', 'ports: ["0.0.0.0:3000:3000"]'))
-git add docker-compose.yml
-git commit -m "demo F03"                  # -> F03 NET-02 + NET-01 FAIL, commit bị hủy
-git restore --staged --worktree docker-compose.yml
-```
-
-#### F03 — Proxy hết chặn `/metrics` khi đang chạy: bị chặn ở Operate
-```powershell
-$p = (Resolve-Path deploy\nginx.conf).Path; [IO.File]::WriteAllText($p, ([IO.File]::ReadAllText($p) -replace '(?m)^.*location = /metrics \{ return 404; \}\r?\n', ''))
-docker compose restart proxy
-& $GB devsecops/pipeline.sh operate       # -> FAIL: GET /metrics → 200
-git restore deploy/nginx.conf
-docker compose restart proxy
-& $GB devsecops/pipeline.sh operate       # -> 5 PASS
-```
-
-#### F04 — Dockerfile bỏ `USER` (chạy root): bị chặn ở Build (Policy as Code `docker_security.rego`)
+#### F04 — Dockerfile bỏ `USER` (chạy root): commit bị chặn (Build · `docker_security.rego`)
 ```powershell
 $p = (Resolve-Path deploy\Dockerfile.hotfix).Path; [IO.File]::WriteAllText($p, ([IO.File]::ReadAllText($p) -replace '(?m)^USER 65532\r?$', ''))
 git add deploy/Dockerfile.hotfix
@@ -135,31 +135,54 @@ git commit -m "demo F04"                  # -> LEAST-PRIVILEGE FAIL, commit bị
 git restore --staged --worktree deploy/Dockerfile.hotfix
 ```
 
-#### F04 — Container chạy root, không cap_drop, không giới hạn: bị chặn ở Operate (Compliance as Code `runtime.rego`)
+#### F03 — Backend mở cổng ra host: commit bị chặn (Deploy · `compose.rego`)
 ```powershell
-docker run -d --name f04-root --user 0 juice-shop:hotfix-f01-f02
-docker inspect --format '{{json .}}' f04-root | docker run --rm -i -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 test --parser json -p report/policy --namespace runtime -   # -> 5 FAIL
-docker rm -f f04-root
+$p = (Resolve-Path docker-compose.yml).Path; [IO.File]::WriteAllText($p, ([IO.File]::ReadAllText($p) -replace 'labels: \{lab\.exposure: internal\}.*', 'ports: ["0.0.0.0:3000:3000"]'))
+git add docker-compose.yml
+git commit -m "demo F03"                  # -> F03 NET-02 + NET-01 FAIL, commit bị hủy
+git restore --staged --worktree docker-compose.yml
 ```
 
-#### Bản đã vá đi qua đủ 7 pha
+#### F03 — Proxy bỏ chặn `/metrics`: commit qua, push bị chặn (Operate · kiểm tra sau triển khai)
 ```powershell
-& $GB devsecops/pipeline.sh               # -> 20 PASS · 1 WARN · 0 FAIL
+$p = (Resolve-Path deploy\nginx.conf).Path; [IO.File]::WriteAllText($p, ([IO.File]::ReadAllText($p) -replace '(?m)^.*location = /metrics \{ return 404; \}\r?\n', ''))
+git add deploy/nginx.conf
+git commit -m "demo F03 proxy"            # -> PASS: không luật tĩnh nào đọc nginx.conf
+git push github fix/demo-ci               # -> pre-push: triển khai lên 3102, Operate FAIL (GET /metrics → 200), push bị hủy
+git reset --soft HEAD~1
+git restore --staged --worktree deploy/nginx.conf
+docker compose restart proxy              # trả proxy về cấu hình đúng (/metrics → 404)
 ```
 
-#### Bỏ qua hook (`--no-verify`): GitHub Actions vẫn chặn
+#### F04 — Container chạy root, bỏ `cap_drop`: commit qua, push bị chặn (Operate · `runtime.rego`)
 ```powershell
-git switch -c fix/demo-ci main
+$p = (Resolve-Path docker-compose.yml).Path; [IO.File]::WriteAllText($p, ([IO.File]::ReadAllText($p) -replace 'user: "65532:0"\r?\n\s*cap_drop: \[ALL\]', 'user: "0:0"'))
+git add docker-compose.yml
+git commit -m "demo F04 root"             # -> PASS: compose.rego không chặn user/cap_drop
+git push github fix/demo-ci               # -> pre-push: triển khai lên 3102, Operate FAIL (PRIV-02 root, PRIV-03 cap_drop), push bị hủy
+git reset --soft HEAD~1
+git restore --staged --worktree docker-compose.yml
+docker compose up -d --wait               # trả container về 65532 + cap_drop ALL
+```
+
+#### Bản đã vá: push đi qua đủ 7 pha, GitHub Actions chạy tiếp
+```powershell
+Add-Content routes/fileServer.ts '// demo: thay doi vo hai'
+git add routes/fileServer.ts
+git commit -m "demo: sua vo hai"          # -> PASS
+git push github fix/demo-ci               # -> pre-push: 21 PASS · 0 FAIL (tự bật Prometheus), push thành công -> Actions chạy nhánh fix/demo-ci
+```
+
+#### Bỏ qua cả hai hook (`--no-verify`): GitHub Actions vẫn chặn
+```powershell
 git restore --source 5658473cf -- routes/login.ts
 git add routes/login.ts
 git commit -m "demo: bypass hook" --no-verify
-git push github fix/demo-ci --no-verify
-git switch main                           # -> Actions đỏ ở step Code
+git push github fix/demo-ci --no-verify   # -> Actions đỏ ở step Code
 ```
 
 #### Dọn và tự kiểm bản vá còn nguyên
 ```powershell
-& $GB devsecops/demo-cleanup.sh
-git status -s routes deploy docker-compose.yml
+& "C:\Program Files\Git\bin\bash.exe" devsecops/demo-cleanup.sh -y   # về main, xóa fix/demo-ci (local + GitHub + Actions), triển khai lại 3102
 node --import ./test/api/helpers/test-env.mjs --import tsx --test --test-force-exit test/api/security/f01-f02.test.ts   # -> pass 11
 ```
