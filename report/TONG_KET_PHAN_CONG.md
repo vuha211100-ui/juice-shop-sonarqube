@@ -2,7 +2,7 @@
 
 > Môn **DevOps và DevSecOps (SEC4349)** · Ứng dụng nền: **OWASP Juice Shop v20.2.0** (tag gốc `v20.2.0`, repo `juice-shop/juice-shop`).
 > Kho của nhóm: `github.com/vuha211100-ui/juice-shop-sonarqube` (nhánh `main` = `fix/f01-f04`).
-> Slide: `report/SLIDE_BaoCao_JuiceShop.pptx` (26 slide; dữ liệu cần bảo vệ & cơ sở chính sách ở **slide 8**; phần việc từng thành viên ở **slide 22–25**).
+> Slide: `report/SLIDE_BaoCao_JuiceShop.pptx` (28 slide; dữ liệu cần bảo vệ & cơ sở chính sách ở **slide 8**; pipeline gắn Git ở **slide 12**; phần việc từng thành viên ở **slide 24–27**). Slide riêng từng thành viên: `report/slide/TV1`–`TV4`.
 
 ---
 
@@ -28,6 +28,8 @@
 - **Triển khai:** chỉ có `docker run`. Thư mục `infrastructure/` và `terraform/` **cố tình viết lỗi** để làm challenge (README ghi "NOT the IaC you are looking for").
 - **Giám sát:** `/metrics` (prom-client) có sẵn trong app, **không xác thực**, cùng 1 file dashboard Grafana JSON. Không có Prometheus, không có luật cảnh báo.
 
+Đo bằng `git diff v20.2.0 HEAD`: nhóm **thêm 59 tệp, sửa 10 tệp**, gỡ 2 workflow gốc không dùng (`zap_scan.yml`, `pr-compliance.yml`).
+
 → Bản gốc **mạnh ở chất lượng ứng dụng**, nhưng **bỏ trống kiến trúc triển khai an toàn và các kiểm soát cấu hình/vận hành**. Đóng góp chính của nhóm nằm ở phần này.
 
 ### 2.2 Nhóm làm thêm, theo từng lớp
@@ -40,8 +42,8 @@
 | **Reverse proxy** | Không có (bản trong `infrastructure/` là bản cố tình lỗi) | `deploy/nginx.conf`: `/metrics` → 404; đăng nhập 5 lần/phút → 429; header bảo mật; `server_tokens off`; log JSON chỉ ghi route đã chuẩn hoá (không lộ dữ liệu cá nhân); `proxy-start.sh` xoay vòng log |
 | **Gia cố container** | Chỉ có non-root | `cap_drop: ALL`, `no-new-privileges`, giới hạn CPU/PID, `tmpfs noexec`, proxy `read_only`, ghim digest nginx, `depends_on: service_healthy` |
 | **Vận hành / giám sát (Operate)** | `/metrics` mở cho tất cả | Prometheus scrape qua mạng nội bộ, luật `HighClientErrorRate` (4XX > 20 / 2 phút → FIRING), Grafana + dashboard mới |
-| **Security as Code** | CodeQL, SBOM | Semgrep (2 bộ luật), Gitleaks + `.gitleaks.toml`, node:test + Supertest (TDS), Conftest/Rego (3 bộ luật, 26 ca kiểm thử), Trivy, Dockle, `hardening.py` |
-| **Quy trình Git / CI** | 16 workflow GitHub của dự án gốc (test, CodeQL, release…), không gắn với F01–F04 | `devsecops/pipeline.sh` chạy các cổng theo đúng sơ đồ 7 pha. Kích hoạt bằng Git hook (`.githooks/pre-commit`, `pre-push`) và workflow `.github/workflows/devsecops.yml`. Semgrep/Gitleaks chỉ chặn phát hiện **mới**; image chỉ được gắn tag triển khai khi qua Test + Release (§5.7) |
+| **Security as Code** | CodeQL, SBOM | Semgrep (2 bộ luật) + `semgrep-diff.mjs` (chỉ chặn cảnh báo mới), Gitleaks + `.gitleaks.toml`, node:test + Supertest (TDS, 11 ca), Conftest/Rego (3 bộ luật, 26 ca kiểm thử), Trivy + `.trivyignore` (11 CVE chấp nhận có lý do), Dockle, `hardening.py` |
+| **Quy trình Git / CI** | 16 workflow GitHub của dự án gốc (test, CodeQL, release…), không gắn với F01–F04 | `devsecops/pipeline.sh` chạy các cổng theo đúng sơ đồ 7 pha. Kích hoạt bằng Git hook (`pre-commit`: cổng tĩnh; `pre-push`: đủ 7 pha, triển khai lên 3102) và workflow `.github/workflows/devsecops.yml` (mỗi pha một step, lần chạy đủ 7 pha 42283870461 xanh). Semgrep/Gitleaks chỉ chặn phát hiện **mới**; image chỉ được gắn tag triển khai khi qua Test + Release (§5.7) |
 | **Tài liệu / bằng chứng** | — | Báo cáo DOCX/PDF + công cụ build, slide, kịch bản, runbook (`README.md`, `DEMO.md`, `scanSAC.md`), log bằng chứng có mã thoát (`report/evidence/`) |
 
 ### 2.3 Con số chính (từ `report/evidence/`)
@@ -59,7 +61,7 @@
 ### 2.4 Điểm còn thiếu / chưa nhất quán (kiểm thật ngày 2026-11-06)
 | # | Vấn đề | Mức |
 |---|---|---|
-| 1 | ~~Chưa có pipeline CI thật~~ → **đã có** pipeline gắn Git (§5.7). Còn lại 2 việc: (a) GitHub Actions trên fork đang **tắt**, cần bật rồi đặt branch protection cho `main` bắt buộc job *DevSecOps pipeline*; (b) khi bật, workflow gốc `ci.yml` cũng chạy và sẽ đỏ vì #6, nên tắt các workflow gốc không dùng | Trung bình |
+| 1 | ~~Chưa có pipeline CI thật~~ → **đã có** pipeline gắn Git và GitHub Actions chạy xanh đủ 7 pha (2026-11-07). Còn thiếu: branch protection cho `main` bắt buộc job *DevSecOps pipeline* (hiện vẫn push thẳng được khi CI đỏ) | Trung bình |
 | 2 | Stack giám sát **fail chính `compose.rego`** của nhóm (2 FAIL: Prometheus/Grafana mở cổng nhưng không phải edge; 4 WARN) và fail `runtime.rego` (Prometheus 6/8, Grafana 5/8) | Cao |
 | 3 | Prometheus vừa nằm trong mạng `backend` vừa mở `127.0.0.1:9090` → vẫn đọc được số liệu `/metrics` qua Prometheus (chỉ trên loopback) | Trung bình |
 | 4 | Grafana ẩn danh quyền **Admin** + cho phép nhúng; Prometheus/Grafana dùng `:latest`, không ghim digest | Trung bình |
@@ -88,14 +90,18 @@ Bám theo **Bảng "Bảy pha thực hành"** của báo cáo (§4). Mỗi công
 | 7. Kiểm chứng & bàn giao | Gitleaks v8.30.1 | — | **Thúy** | 42 commit, no leaks · `gitleaks.log` |
 | 7. Kiểm chứng & bàn giao | Conftest verify | — | **Vũ** | 19/19 · `conftest-verify.log` |
 | 7. Giám sát vận hành | Prometheus 3.15.1 · Grafana 13.3.0 | F03 | **Quốc Anh** | target UP · cảnh báo FIRING · `monitoring.log` |
+| Pipeline · Code | `semgrep-diff.mjs` (Semgrep chỉ chặn cảnh báo **mới**) · cổng Test node:test | F01, F02 | **Thắng** | commit đưa lại F01 bị chặn; push đưa lại F02 bị Test chặn |
+| Pipeline · Code/Release | Gitleaks chỉ quét dòng được thêm · `.trivyignore` (cổng Trivy chỉ chặn CRITICAL mới) | — | **Thúy** | khóa AWS giả trong commit bị chặn |
+| Pipeline · Deploy/Operate/Monitor + CI | `.github/workflows/devsecops.yml` · kiểm `/metrics` 404, header, 429, Prometheus sau triển khai | F03 | **Quốc Anh** | Actions xanh đủ 7 pha; nginx bỏ chặn `/metrics` bị Operate chặn |
+| Pipeline · điều phối | `devsecops/pipeline.sh`, Git hook `pre-commit`/`pre-push`, image ứng viên → tag phát hành, `demo-cleanup.sh` | F04 | **Vũ** | push bản vá: 21 PASS · 0 FAIL |
 
-**Tóm tắt theo người:** Thắng: pha 3, 4, 5 · Thúy: pha 3, 4, 5, 7 · Quốc Anh: pha 1, 2, 6, 7 · Vũ: pha 2, 6, 7.
+**Tóm tắt theo người** (pha báo cáo · pha pipeline): Thắng: 3, 4, 5 · Code, Test — Thúy: 3, 4, 5, 7 · Code, Release — Quốc Anh: 1, 2, 6, 7 · Deploy, Operate, Monitor + CI — Vũ: 2, 6, 7 · Build, Release + điều phối pipeline, tài liệu.
 
 ---
 
 ## 4. Phân công chi tiết
 
-### 4.1 Nguyễn Toàn Thắng — B26CHAT039 · slide 22
+### 4.1 Nguyễn Toàn Thắng — B26CHAT039 · slide 24
 **Vai trò:** lớp mã nguồn — xác thực, SAST và kiểm thử bảo mật · **Lỗi:** F01 SQL injection đăng nhập (CWE-89, OWASP A03; GDPR Đ.32(1)(b)) · **Pha (báo cáo):** 3 → 4 → 5
 
 **Công cụ:** Semgrep 1.180.0 (pha 3, SAST) · node:test + Supertest (pha 4, TDS) · TypeScript/Express (pha 5, vá)
@@ -107,12 +113,14 @@ Bám theo **Bảng "Bảy pha thực hành"** của báo cáo (§4). Mỗi công
 | Dựng khung Test-Driven Security (node:test + Supertest): đỏ trên mã chưa vá → xanh sau vá | `test/api/security/f01-f02.test.ts` |
 | Cập nhật 2 ca SQLi trong bộ test gốc sang kỳ vọng 401 | `test/api/login.test.ts` |
 | Demo trước/sau vá | `report/demos/tv1_f01_sqli.py` |
+| Cổng Code của pipeline: Semgrep chỉ chặn cảnh báo **mới** so với bản gốc (38 cảnh báo có sẵn không chặn) | `devsecops/semgrep-diff.mjs` |
+| Khung demo dùng chung và hình bằng chứng đỏ/xanh, tv1–tv4 | `report/demos/common.py`, `report/figures/capture_demos.py` |
 
 **Cách chạy:** §5.2 pha 3 (Semgrep), pha 4 (node:test), pha 5 (vá + dựng lại image); demo §5.4.
 
 **Kết quả:** 38 cảnh báo Semgrep / 25 tệp · 11/11 ca xanh sau vá (trước 7 đỏ) · payload `' OR 1=1--`: 3100 cấp token quản trị → 3102 trả 401; đăng nhập hợp lệ vẫn 200.
 
-### 4.2 Phạm Thị Minh Thúy — B26CHAT042 · slide 23
+### 4.2 Phạm Thị Minh Thúy — B26CHAT042 · slide 25
 **Vai trò:** lớp mã nguồn tệp và chuỗi cung ứng (secret, dependency) · **Lỗi:** F02 Poison Null Byte (CWE-158/180, OWASP A01; GDPR Đ.5(1)(f), 32) · **Pha (báo cáo):** 3 → 4 → 5 → 7
 
 **Công cụ:** Trivy 0.76.1 (pha 3, SCA) · node:test + Supertest (pha 4, ca F02) · TypeScript/Express (pha 5, vá) · Gitleaks v8.30.1 (pha 7, quét secret)
@@ -124,12 +132,15 @@ Bám theo **Bảng "Bảy pha thực hành"** của báo cáo (§4). Mỗi công
 | Quét secret bằng Gitleaks trên các commit của nhóm; allowlist cho khóa RSA giả của demo | `.gitleaks.toml` |
 | Quét CVE dependency của image triển khai bằng Trivy (SCA). Lý do gắn với F02: tệp `package.json.bak` bị lộ chứa phiên bản thư viện, Trivy chỉ ra thư viện nào có CVE | `report/evidence/trivy-image.json` |
 | Demo trước/sau vá | `report/demos/tv2_f02_pathtraversal.py` |
+| Danh sách rủi ro đã chấp nhận cho cổng Trivy: 11 CVE CRITICAL của image gốc, mỗi dòng ghi gói + bản sửa → cổng chỉ chặn CRITICAL **mới** | `devsecops/.trivyignore` |
+| Cổng Gitleaks chỉ quét **dòng được thêm**; allowlist đúng dòng lệnh demo ghi khóa AWS giả trong tài liệu | `.gitleaks.toml` |
+| Hình bằng chứng quét image + giám sát (Trivy, Dockle, Prometheus) | `report/figures/capture_scans.py` |
 
 **Cách chạy:** §5.2 pha 3 (Trivy), pha 4 (ca F02), pha 5 (vá), pha 7 (Gitleaks); demo §5.4.
 
 **Kết quả:** `/ftp/package.json.bak%2500.md`: trước 200 (lộ `.bak`) → sau 403 · Gitleaks 0 leak / 42 commit · Trivy 173 CVE duy nhất (189 bản ghi, 12 CRITICAL).
 
-### 4.3 Đỗ Đức Quốc Anh — B26CHAT001 · slide 24
+### 4.3 Đỗ Đức Quốc Anh — B26CHAT001 · slide 26
 **Vai trò:** hạ tầng triển khai và vận hành — mạng, proxy, giám sát · **Lỗi:** F03 `/metrics` không xác thực (OWASP A05; GDPR Đ.25(2), 32) · **Pha (báo cáo):** 1 → 2 → 6 → 7
 
 **Công cụ:** Docker Compose + Node.js (pha 1) · Conftest/OPA `compose.rego` (pha 2) · `docker inspect` (pha 6) · Prometheus 3.15.1 + Grafana 13.3.0 (pha 7)
@@ -143,12 +154,14 @@ Bám theo **Bảng "Bảy pha thực hành"** của báo cáo (§4). Mỗi công
 | Kiểm container đang chạy bằng `docker inspect`: backend 0 cổng host, non-root, `cap_drop ALL` | `report/checks/hardening.py` |
 | Giám sát: Prometheus scrape nội bộ, luật `HighClientErrorRate`, Grafana + dashboard | `docker-compose.monitoring.yml`, `deploy/monitoring/*` |
 | Demo trước/sau vá | `report/demos/tv3_f03_metrics.py` |
+| GitHub Actions: mỗi pha một step, tự xác định commit gốc, lưu log làm artifact, dọn môi trường; cài phụ thuộc `--before` 1 ngày tránh bộ gói phát hành dở | `.github/workflows/devsecops.yml` |
+| Cổng Deploy/Operate/Monitor: triển khai `compose up --wait`, kiểm `/metrics` 404, header, rate-limit 429, Prometheus target UP + luật cảnh báo | `devsecops/pipeline.sh` (pha Deploy–Monitor) |
 
 **Cách chạy:** §5.1 (2 môi trường + bảng kiểm hạ tầng), §5.2 pha 2 (`compose.rego`), pha 6 (`hardening.py`), §5.3 (Prometheus/Grafana + kích FIRING); demo §5.4.
 
 **Kết quả:** `/metrics`: 3100 trả 200 (393 dòng) → 3102 trả 404 · backend không có cổng host · rate-limit 429 · `compose.rego` 6/6 · cảnh báo FIRING khi 4XX tăng đột biến.
 
-### 4.4 Hồ Anh Vũ — B26CHAT048 · slide 25
+### 4.4 Hồ Anh Vũ — B26CHAT048 · slide 27
 **Vai trò:** Build & Release container — Policy / Compliance as Code · **Lỗi:** F04 sai cấu hình container (CIS Docker, NIST SP 800-190, PCI-DSS 2.2/8.2.1; GDPR Đ.25(1), 32(1)(d)) · **Pha (báo cáo):** 2 → 6 → 7
 
 **Công cụ:** Conftest/OPA `docker_security.rego` (pha 2) · Dockle 0.4.15 + Conftest `runtime.rego` (pha 6) · `conftest verify` (pha 7)
@@ -162,6 +175,9 @@ Bám theo **Bảng "Bảy pha thực hành"** của báo cáo (§4). Mỗi công
 | Luật runtime đối chiếu kết quả `docker inspect` của container đang chạy (7 ca kiểm thử) | `report/policy/runtime.rego` |
 | Chạy lại toàn bộ luật trước bàn giao (`conftest verify`) | `report/evidence/conftest-verify.log` |
 | Demo trước/sau vá | `report/demos/tv4_f04_policy.py` |
+| Điều phối pipeline 7 pha: lọc theo loại thay đổi, dừng ở pha FAIL đầu tiên, image ứng viên `ci-<sha>` → tag phát hành; Git hook `pre-commit` (cổng tĩnh) và `pre-push` (đủ 7 pha) | `devsecops/pipeline.sh`, `.githooks/`, `devsecops/install-hooks.sh` |
+| Kịch bản kiểm thử tích hợp 4 lỗi qua `git commit`/`git push` + script dọn | `report/scanSAC.md`, `devsecops/demo-cleanup.sh` |
+| Báo cáo DOCX/PDF dựng từ một nguồn, sơ đồ quy trình, slide | `report/tools/`, `report/figures/devsecops_pipeline.py`, `report/slide/` |
 
 **Cách chạy:** §5.2 pha 2 (`docker_security.rego`), pha 6 (Dockle + `runtime.rego`), pha 7 (`conftest verify`); demo §5.4.
 
@@ -333,7 +349,7 @@ python report/tools/build_pdf.py       # report_concise.md -> BaoCao_DevSecOps_J
 | `report/GIOI_HAN_VA_HUONG_MO_RONG.md` | Giới hạn phạm vi + hướng mở rộng |
 | `report/TONG_KET_PHAN_CONG.md` | File này |
 | `report/evidence/` | Log gốc kèm lệnh, thời điểm, phiên bản, mã thoát |
-| `report/SLIDE_BaoCao_JuiceShop.pptx` | Slide (26 trang). Script sinh slide (`build_deck.js`, pptxgenjs) hiện **chưa nằm trong repo** |
+| `report/SLIDE_BaoCao_JuiceShop.pptx` | Slide nhóm (28 trang). Slide riêng 4 thành viên ở `report/slide/`, script dựng ở `report/slide/build/` |
 
 ### 5.6 Sinh lại hình và log bằng chứng
 Các script chạy **lệnh thật**, ghi log gốc vào `report/evidence/<id>.log` (kèm lệnh, thời điểm, phiên bản, mã thoát) rồi vẽ ảnh vào `report/screenshots/`. Cần Docker + 3 container (`juice-report-lab`, `juice-app-proxy-1`, `juice-app-juice-shop-1`).
@@ -353,7 +369,7 @@ Chi tiết ở `devsecops/README.md`. Mọi cổng ở §5.2–5.3 được gói
 | Kích hoạt | Pha chạy |
 |---|---|
 | `git commit` → `.githooks/pre-commit` | Code (Gitleaks trên phần đã `git add`, Semgrep chặn cảnh báo **mới**) + Conftest Dockerfile/compose |
-| `git push` → `.githooks/pre-push` | Code → Build (tsc, image ứng viên `juice-shop:ci-<sha>`) → Test → Release (Trivy CVE CRITICAL mới, Dockle; đạt thì gắn tag `hotfix-f01-f02`) → Deploy (chỉ chính sách) |
+| `git push` → `.githooks/pre-push` | Cả 7 pha: Code → Build (tsc, image ứng viên `juice-shop:ci-<sha>`) → Test → Release (Trivy CVE CRITICAL mới, Dockle; đạt thì gắn tag `hotfix-f01-f02`) → Deploy (triển khai lên 3102) → Operate → Monitor (tự bật Prometheus nếu chưa chạy) |
 | GitHub Actions `devsecops.yml` (push `main`/`fix/**`/`tv-*`, PR vào `main`) | Cả 7 pha, triển khai thật trên runner rồi chạy Operate + Monitor |
 
 ```bash
@@ -376,6 +392,9 @@ bash devsecops/pipeline.sh deploy operate monitor    # chỉ triển khai + ki�
 | Bỏ qua bằng `--no-verify` rồi push | pre-push chặn ở Semgrep. Chạy riêng pha Test thì **5 ca SQLi đỏ** (200 thay vì 401) |
 | Bỏ `USER 65532` và mở `0.0.0.0:3000` cho backend | Bị chặn: `LEAST-PRIVILEGE` (F04), `F03 NET-02` và `NET-01` (F03), báo cùng một lần |
 | Sửa vô hại trong `fileServer.ts` | Đạt. Cảnh báo `res.sendFile` có sẵn không bị tính là mới |
+| (2026-11-07) Push commit đưa lại `fileServer.ts` chưa vá (F02) | pre-push: Code, Build PASS; **Test FAIL** (ca poison null byte nhận 200 thay vì 403), các pha sau SKIP, push bị hủy |
+| (2026-11-07) Push mã đã vá, stack giám sát đang tắt | pre-push: **21 PASS · 0 FAIL**, khoảng 1 phút 40 giây, tự bật Prometheus cho pha Monitor |
+| (2026-11-07) Push chỉ sửa workflow/tài liệu | pre-push: chỉ Gitleaks chạy, các pha còn lại SKIP |
 
 ### 5.8 Dừng môi trường
 ```powershell

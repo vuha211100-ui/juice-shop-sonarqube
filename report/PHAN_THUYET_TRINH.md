@@ -59,7 +59,7 @@
   - **Phát hiện lỗ hổng (SAST/SCA):** Semgrep (SAST, pha Code), **Trivy** (SCA/CVE image, pha Release), Gitleaks (secret).
   - **Kiểm thử bảo mật (TDS):** node:test + Supertest (pha Test), đỏ trước vá → xanh sau vá.
   - **Policy as Code:** Conftest/Rego kiểm **văn bản** Dockerfile + compose **trước khi triển khai** (Build/Deploy).
-  - **Compliance as Code:** `docker inspect` + **Dockle** kiểm **container/image đang chạy** (Operate).
+  - **Compliance as Code:** **Dockle** kiểm **image thành phẩm** (Release) + `runtime.rego` trên `docker inspect` kiểm **container đang chạy** (Operate).
   - **Giám sát vận hành:** Prometheus/Grafana + cảnh báo (Monitor).
     - **Vai trò (chốt khi bị hỏi):**
       - `/metrics` — app Juice Shop *tự phơi* số liệu (qua `prom-client`, **có sẵn** trong Juice Shop; chỉ là trang text định dạng Prometheus, **không phải server**). Chính endpoint này là bề mặt của **F03**.
@@ -72,24 +72,43 @@
 
 ### A6. Pipeline tích hợp Git — chạy thế nào, output ra sao
 - **Một câu:** mọi cổng trên sơ đồ gói trong **một script** `devsecops/pipeline.sh`; **Git tự gọi** nó mỗi khi sửa lỗi/đổi mã, nên máy thành viên và GitHub chạy **đúng cùng một bộ cổng**.
-- **Ai kích hoạt:**
-  - `git commit` → hook **pre-commit**: cổng tĩnh trên phần đã `git add` (Gitleaks, Semgrep, Conftest) — ~20–60 s.
-  - `git push` → hook **pre-push**: Code → Build → Test → Release → Deploy (chỉ kiểm chính sách) trên các commit sắp đẩy.
-  - push lên GitHub / pull request vào `main` → **GitHub Actions** `devsecops.yml`: đủ **7 pha**, mỗi pha một step, triển khai thật trên máy ảo rồi chạy Operate/Monitor.
+- **Ai kích hoạt (3 điểm, cùng một script):**
+  - `git commit` → hook **pre-commit** (`.githooks/pre-commit`): chỉ **cổng tĩnh** trên phần đã `git add` — vài giây đến ~1 phút.
+  - `git push` → hook **pre-push** (`.githooks/pre-push`): đủ **7 pha** trên các commit sắp đẩy, **triển khai thật lên 3102** trên máy rồi kiểm Operate/Monitor — ~2 phút, cần Docker đang chạy.
+  - push nhánh `main` / `fix/**` / `tv-*`, pull request vào `main` → **GitHub Actions** `devsecops.yml`: đủ **7 pha**, mỗi pha một step, triển khai trên máy ảo của GitHub.
+  - Hook được bật bằng `git config core.hooksPath .githooks` (`devsecops/install-hooks.sh`, mỗi máy một lần).
   - **Cơ chế chặn:** Git chạy hook **trước** khi commit/push; script trả **exit 1** → Git **hủy** thao tác. Trên GitHub, step exit 1 → **đỏ ❌**, các step sau không chạy.
+- **Cổng nào chạy ở đâu:**
+
+  | Pha | Cổng | Bắt gì | commit | push | GitHub Actions |
+  |---|---|---|:-:|:-:|:-:|
+  | Code | Gitleaks | Secret trong dòng **được thêm** | ✅ | ✅ | ✅ |
+  | Code | Semgrep | Cảnh báo SAST **mới** so với bản gốc (F01) | ✅ | ✅ | ✅ |
+  | Build | `conftest verify` | 26 ca unit test cho chính các luật Rego | ✅ | ✅ | ✅ |
+  | Build | Conftest `docker_security.rego` | Dockerfile sai (F04: thiếu `USER`, cổng 22/3306, secret…) | ✅ | ✅ | ✅ |
+  | Build | `tsc` + `docker build` | Lỗi biên dịch; tạo image **ứng viên** `ci-<sha>` | — | ✅ | ✅ |
+  | Test | node:test + Supertest | 11 ca F01/F02 (gửi payload thật, đỏ nếu khai thác được) | — | ✅ | ✅ |
+  | Release | Trivy | CVE **CRITICAL mới** (ngoài 11 CVE đã chấp nhận) | — | ✅ | ✅ |
+  | Release | Dockle | Image vi phạm CIS (WARN/FATAL) | — | ✅ | ✅ |
+  | Release | Gắn tag `hotfix-f01-f02` | Chỉ khi Test + Trivy + Dockle đều đạt | — | ✅ | ✅ |
+  | Deploy | Conftest `compose.rego` | Compose sai (F03: backend mở cổng host, `0.0.0.0`, `privileged`, `docker.sock`…) | ✅ | ✅ | ✅ |
+  | Deploy | `docker compose up --wait` | Container không lên / không healthy | — | ✅ 3102 | ✅ máy ảo |
+  | Operate | `runtime.rego` trên `docker inspect` | Container **đang chạy** là root, thiếu `cap_drop`/`no-new-privileges`, không giới hạn CPU/PID (F04) | — | ✅ | ✅ |
+  | Operate | Gọi HTTP qua proxy | `/`→200, `/metrics`→**404** (F03), header `nosniff`/`no-referrer`, đăng nhập dồn dập → **429** | — | ✅ | ✅ |
+  | Monitor | Prometheus | Target `juice-shop` UP + luật `HighClientErrorRate` đã nạp (stack giám sát chưa chạy thì tự bật) | — | ✅ | ✅ |
+  | | **Bỏ qua được bằng `--no-verify`?** | | có | có | **không** |
+
+- **Vì sao commit chỉ chạy cổng tĩnh — không phải bypass:** commit còn nằm trên máy, chưa ảnh hưởng ai; các cổng chậm (build image, test, Trivy, triển khai) **dời sang push và CI**, không bị bỏ. Bắt mỗi commit chờ vài phút thì người ta quen gõ `--no-verify` — mất luôn cả Gitleaks/Semgrep. Cái phải chặn ngay ở commit là **secret** (đã vào lịch sử Git là coi như lộ).
+- **Operate trong luồng push nghĩa là gì:** không phải giám sát production, mà là **kiểm tra ngay sau triển khai** trên 3102 (đóng vai staging) trước khi cho code lên GitHub. Cần vì có lỗi **chỉ lộ khi đã chạy**:
+  - `nginx.conf` bỏ dòng chặn `/metrics` → không luật Rego nào đọc được file nginx, commit/Build/Deploy đều PASS; chỉ Operate gọi `GET /metrics` thấy **200** → chặn.
+  - compose cho chạy root + bỏ `cap_drop` → `compose.rego` chỉ cảnh báo; `runtime.rego` trên container đang chạy **FAIL** (PRIV-02, PRIV-03) → chặn.
+  - Phần "vận hành liên tục" đúng nghĩa là **Monitor** (Prometheus + cảnh báo chạy suốt).
 - **Bên trong script (5 bước):**
   1. **Xác định phần thay đổi** — pre-commit: so phần đã `git add` với HEAD; pre-push: so với commit đang có trên GitHub; CI: so với commit trước/nhánh `main`; chạy tay: so với bản gốc v20.2.0.
-  2. **Lọc** — chỉ sửa tài liệu → chỉ chạy pha Code; sửa mã (`routes/`, `lib/`…) hoặc hạ tầng (Dockerfile, compose, policy) → chạy đủ.
-  3. **Chạy các pha theo đúng sơ đồ**, mỗi cổng là một công cụ chạy trong Docker, ghim phiên bản như báo cáo:
-     - **Code** — Gitleaks (secret trong dòng **được thêm**) · Semgrep (cảnh báo SAST **mới**).
-     - **Build** — `conftest verify` (26 ca) · Conftest `docker_security.rego` (F04) · `tsc` · `docker build` → image **ứng viên** `juice-shop:ci-<sha>`.
-     - **Test** — node:test + Supertest, 11 ca F01/F02.
-     - **Release** — Trivy (CVE CRITICAL **mới**, ngoài 11 CVE đã chấp nhận) · Dockle (CIS) → đạt cả hai mới **gắn tag triển khai** `hotfix-f01-f02`.
-     - **Deploy** — Conftest `compose.rego` (F03) · `docker compose up` lên 3102.
-     - **Operate** — `runtime.rego` trên `docker inspect` · qua proxy: `/`→200, `/metrics`→**404**, header `nosniff`/`no-referrer`, đăng nhập dồn dập → **429**.
-     - **Monitor** — Prometheus target UP + luật `HighClientErrorRate` đã nạp.
+  2. **Lọc** — Gitleaks luôn chạy; Semgrep chỉ khi đổi mã server; Test chỉ khi đổi mã ứng dụng; Build/Release/Deploy khi đổi mã **hoặc** hạ tầng (Dockerfile, compose, `deploy/`, policy, `devsecops/`). Chỉ sửa tài liệu → chỉ Gitleaks, Deploy không triển khai nên Operate/Monitor cũng SKIP. `--full` (hoặc chạy Actions tay với `full=true`) bỏ lọc.
+  3. **Chạy các pha theo đúng sơ đồ** (bảng trên), mỗi cổng là một công cụ chạy trong Docker, ghim phiên bản như báo cáo.
   4. **In bảng kết quả** — mỗi cổng một dòng `Pha · Cổng · Trạng thái`; FAIL thì in kèm 20 dòng log ngay bên dưới.
-  5. **Trả mã thoát** — 0 = đạt (WARN không chặn), 1 = có FAIL. Pha nào FAIL thì các pha sau **SKIP** (không build/deploy bản lỗi); riêng pre-commit chạy hết cổng tĩnh để thấy mọi lỗi một lần.
+  5. **Trả mã thoát** — 0 = đạt (WARN không chặn), 1 = có FAIL. Pha nào FAIL thì các pha sau **SKIP** (không build/deploy bản lỗi); riêng pre-commit chạy hết cổng tĩnh để thấy mọi lỗi một lần. pre-push đạt thì ghi dấu theo SHA → đẩy cùng commit lên nhánh thứ hai không chạy lại.
 - **Output khi đạt** (chạy thật trên mã hiện tại):
   ```
   ══ DevSecOps pipeline · main@838b2531b ══
@@ -113,11 +132,12 @@
 - **Đọc trạng thái:** **PASS** đạt · **WARN** cần biết nhưng **không chặn** (vd 5 tệp sửa ngoài 2 route không vào image hotfix — nói thẳng, đó là giới hạn) · **FAIL** vi phạm, **chặn** · **SKIP** không liên quan thay đổi hoặc pha trước đã FAIL.
 - **Output lưu ở đâu:** log từng cổng `.devsecops/NN-<Pha>.log`; bảng tổng `.devsecops/summary.md`; trên GitHub: mỗi pha một step ✅/❌, bảng ở trang *Summary*, log tải ở *Artifacts*.
 - **Chốt khi bị hỏi:**
-  - *"Juice Shop đầy lỗ hổng cố ý, sao commit được?"* — cổng **chỉ chặn cái mới**: Semgrep so với bản gốc, Gitleaks chỉ quét dòng được thêm, Trivy bỏ qua danh sách rủi ro đã chấp nhận (`.trivyignore`).
-  - *"Bản lỗi có lên 3102 được không?"* — không: Build chỉ tạo tag **ứng viên**; compose triển khai tag `hotfix-f01-f02`, chỉ được gắn khi **Test + Trivy + Dockle đều đạt**.
-  - *"Sao cần cả hook lẫn CI?"* — hook cho phản hồi **sớm** trên máy (shift-left) nhưng bỏ qua được bằng `--no-verify`; **GitHub Actions** là cổng không bỏ qua được.
-  - *"Có tự triển khai lên môi trường thật không?"* — **chưa có CD**: Deploy trên Actions là lên máy ảo tạm để kiểm Operate/Monitor; cập nhật 3102 là lệnh tay.
-- **[Cue] Demo** theo `devsecops/DEMO.md` (PowerShell): commit lỗi F01 bị chặn → hạ tầng sai F03/F04 bị chặn → chạy đủ 7 pha → mở tab Actions (lần xanh + lần đỏ khi bỏ qua hook). Dọn: `& $GB devsecops/demo-cleanup.sh`.
+  - *"Juice Shop đầy lỗ hổng cố ý, sao commit được?"* — cổng **chỉ chặn cái mới**: Semgrep so với bản gốc của cùng tệp (`devsecops/semgrep-diff.mjs`, nhận diện theo luật + nội dung dòng), Gitleaks chỉ quét dòng được thêm, Trivy bỏ qua danh sách rủi ro đã chấp nhận (`devsecops/.trivyignore`).
+  - *"Trivy cứ ra CVE là chặn?"* — không: chỉ chặn CVE **CRITICAL** và **không nằm trong** `.trivyignore` (11 CVE có sẵn của image gốc). Image còn 173 CVE vẫn qua; chỉ đỏ khi thay đổi kéo thêm dependency có lỗi CRITICAL. Giới hạn: không chặn HIGH; danh sách chấp nhận chưa có người duyệt bắt buộc (CODEOWNERS).
+  - *"Bản lỗi có lên 3102 được không?"* — không: Build chỉ tạo tag **ứng viên**; compose triển khai tag `hotfix-f01-f02`, chỉ được gắn khi **Test + Trivy + Dockle đều đạt**. Riêng lỗi cấu hình chỉ lộ khi chạy (nginx, root) thì có lên 3102, Operate phát hiện và **hủy push** — phải trả cấu hình lại.
+  - *"Sao cần cả hook lẫn CI?"* — hook cho phản hồi **sớm** trên máy (shift-left) nhưng bỏ qua được bằng `--no-verify`; **GitHub Actions** là cổng không bỏ qua được. Muốn CI thật sự bắt buộc thì phải bật branch protection cho `main` (chưa bật).
+  - *"Có tự triển khai lên môi trường thật không?"* — **chưa có CD**: pre-push triển khai lên 3102 trên máy thành viên, Actions triển khai lên máy ảo tạm; chưa có môi trường production.
+- **[Cue] Demo** theo `report/scanSAC.md` mục *Integration* (PowerShell, chỉ dùng `git commit` / `git push`): F01 + secret bị chặn ở commit → F01 `--no-verify` bị chặn ở push → F02 qua commit, chặn ở Test → F03/F04 cấu hình sai bị chặn ở commit → nginx bỏ chặn `/metrics` và container root bị chặn ở Operate → bản vá push đạt 21 PASS → bỏ qua cả hai hook thì Actions đỏ. Dọn: `& "C:\Program Files\Git\bin\bash.exe" devsecops/demo-cleanup.sh -y`.
 
 ---
 
@@ -143,7 +163,7 @@
 - **Lỗi:** `/metrics` (prom-client) mở, **không xác thực**; rủi ro **vận hành**, không phải lỗi code.
 - **Impact:** **rò rỉ dữ liệu vận hành** (số người dùng, số đơn, số dư ví) cho bất kỳ ai tới host → **trinh sát/do thám** hệ thống, suy ra quy mô kinh doanh. Chuẩn: **GDPR Đ.25(2), 32**.
 - **Phát hiện (quét kiểu gì):** rà bề mặt phơi nhiễm khi dựng giám sát — **thử `/metrics` từ host** → 200 không cần auth (động, kiểu DAST).
-- **Xử lý (sửa kiểu gì):** backend vào **mạng internal**, proxy trả **404** cho `/metrics` (không xóa — giám sát nội bộ vẫn dùng); chống tái diễn tự động bằng **Policy as Code** `compose.rego` (NET-02) + cảnh báo `HighClientErrorRate` fire thật.
+- **Xử lý (sửa kiểu gì):** backend vào **mạng internal**, proxy trả **404** cho `/metrics` (không xóa — giám sát nội bộ vẫn dùng); chống tái diễn tự động bằng **hai lớp**: **Policy as Code** `compose.rego` (NET-02) chặn backend mở cổng host ngay khi commit; còn lớp proxy (`nginx.conf`) không có luật Rego nào đọc được nên do **Operate** gọi thật `GET /metrics` → phải **404**. Thêm cảnh báo `HighClientErrorRate` fire thật.
 - Pha **Deploy → Operate**.
 - **Demo (vừa chạy vừa nói):** `python report/demos/tv3_f03_metrics.py`. Trước vá `3100/metrics` → **200**, cuộn cho thấy số người dùng/ví bị lộ. Sau vá `3102/metrics` → **404**; cổng backend cũ **refused**; nhưng `docker exec` proxy đọc metrics nội bộ → **vẫn được** ("giám sát trong mạng vẫn dùng"). Bảng cuối: **Conftest `compose.rego`** — compose trước vá **exit 1** (`F03 NET-02`), `docker-compose.yml` **exit 0**. Mở **Grafana**: số liệu thật + cảnh báo **FIRING** khi mô phỏng dò đăng nhập.
 
@@ -174,7 +194,7 @@
 ## D. KẾT LUẬN
 - Trọn vòng **phát hiện – sửa – kiểm chứng** cho 4 tình huống, viết thành mã, chạy được; trải Code/Test → Build/Deploy → Operate.
 - Các kiểm soát **chạy tự động theo Git**: hook pre-commit/pre-push trên máy + GitHub Actions đủ 7 pha (mục A6) — mỗi lần sửa lỗi/đổi mã đều qua cùng một bộ cổng.
-- Ranh giới: repo Juice Shop gốc **đã có** CI/CD, CodeQL, SBOM; đóng góp nhóm là **kiểm soát bổ sung, hướng dữ liệu cá nhân** trong phạm vi 4 tình huống, gắn vào quy trình Git. **Chưa có CD** lên môi trường thật (triển khai 3102 là lệnh tay).
+- Ranh giới: repo Juice Shop gốc **đã có** CI/CD, CodeQL, SBOM; đóng góp nhóm là **kiểm soát bổ sung, hướng dữ liệu cá nhân** trong phạm vi 4 tình huống, gắn vào quy trình Git. **Chưa có CD** lên môi trường thật (pre-push triển khai lên 3102 trên máy thành viên, Actions lên máy ảo tạm).
 
 ## Lưu ý thuật ngữ
 - **lỗ hổng** (không "điểm yếu"); **Poison Null Byte** (không IDOR); **truy vấn tham số**; **Policy as Code**.
@@ -188,4 +208,4 @@
 
 Đã tách sang **`report/scanSAC.md`** — lệnh chạy từng công cụ (slide A7) theo pha, kèm ghi chú Trivy/Dockle qua Docker và mục Prometheus.
 
-Pipeline tích hợp Git (mục A6): cách hoạt động + bảng cổng ở **`devsecops/README.md`**; kịch bản test/demo từng bước (PowerShell) + script dọn ở **`devsecops/DEMO.md`**.
+Pipeline tích hợp Git (mục A6): cách hoạt động + bảng cổng ở **`devsecops/README.md`**; kịch bản test 4 lỗi qua `git commit` / `git push` (PowerShell) ở **`report/scanSAC.md`** mục *Integration*; script dọn `devsecops/demo-cleanup.sh`.

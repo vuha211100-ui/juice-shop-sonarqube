@@ -45,12 +45,14 @@ Dừng khi xong: `docker compose down` và `docker stop juice-report-lab`.
 
 ## 1. Thành viên & phân công
 
-| Thành viên | Lỗi phụ trách | Vá / kiểm tra tại |
+| Thành viên | Lỗi phụ trách | Phần việc chính (công cụ) |
 |---|---|---|
-| Nguyễn Toàn Thắng — B26CHAT039 | **F01** SQL injection khi đăng nhập | `routes/login.ts` |
-| Phạm Thị Minh Thúy — B26CHAT042 | **F02** Poison Null Byte (lộ tệp sao lưu) | `routes/fileServer.ts` |
-| Đỗ Đức Quốc Anh — B26CHAT001 | **F03** lộ endpoint `/metrics` không xác thực | `docker-compose.yml`, `deploy/nginx.conf`, `policy/compose.rego` |
-| Hồ Anh Vũ — B26CHAT048 | **F04** sai cấu hình container (Policy as Code) | `policy/docker_security.rego` |
+| Nguyễn Toàn Thắng — B26CHAT039 | **F01** SQL injection khi đăng nhập | Vá `routes/login.ts`; SAST **Semgrep**; kiểm thử bảo mật **node:test + Supertest**; cổng Semgrep chỉ chặn cảnh báo mới |
+| Phạm Thị Minh Thúy — B26CHAT042 | **F02** Poison Null Byte (lộ tệp sao lưu) | Vá `routes/fileServer.ts`; quét secret **Gitleaks**; SCA **Trivy** + `devsecops/.trivyignore` |
+| Đỗ Đức Quốc Anh — B26CHAT001 | **F03** lộ endpoint `/metrics` không xác thực | **Docker Compose**, **Nginx**, `compose.rego`, `hardening.py` (**docker inspect**), **Prometheus + Grafana**, **GitHub Actions** |
+| Hồ Anh Vũ — B26CHAT048 | **F04** sai cấu hình container (Policy as Code) | **Conftest** `docker_security.rego`, `Dockerfile.hotfix`, **Dockle**, `runtime.rego`, `pipeline.sh` + **Git hook**, dựng báo cáo |
+
+Phân công chi tiết từng tệp: `report/TONG_KET_PHAN_CONG.md` mục 3–4.
 
 ---
 
@@ -142,8 +144,9 @@ docker compose up -d --build
 docker compose ps        # kiểm tra proxy + juice-shop đã chạy
 ```
 
-Lần đầu Docker **tự tải** các image: `bkimminich/juice-shop:v20.2.0`, `nginx:1.28-alpine`,
+Lần đầu Docker **tự tải** các image: `bkimminich/juice-shop:v20.2.0`, `nginx` (ghim digest),
 `openpolicyagent/conftest:v0.71.1`, `semgrep/semgrep:1.180.0`, `zricethezav/gitleaks:v8.30.1` (mất vài phút).
+Khi chạy tới các bước sau, Docker tải thêm `aquasec/trivy:0.76.1`, `goodwithtech/dockle:v0.4.15`, `prom/prometheus`, `grafana/grafana`.
 
 ---
 
@@ -173,12 +176,32 @@ Hoặc chạy từng cái: `python report/demos/tv1_f01_sqli.py` …
 
 ## 8. Các cổng kiểm soát (Security as Code / Policy as Code)
 
-Lệnh chi tiết cho từng cổng (Semgrep SAST, Gitleaks, node:test đỏ→xanh, Conftest build-time & runtime) ở **`report/DEMO.md` mục 4**. Tóm tắt:
+Lệnh chạy riêng từng công cụ ở **`report/scanSAC.md`** (theo pha) và `report/DEMO.md` mục 4. Tóm tắt các cổng:
 
-- **SAST (Semgrep)** chỉ ra dòng lỗi F01/F02.
-- **node:test** chạy app thật: đỏ trước vá → xanh sau vá.
-- **Policy as Code (Conftest/OPA)**: luật Rego chặn Dockerfile/compose sai cấu hình (`conftest verify -p policy` → 19/19).
-- **Chặn phát hành** chỉ ở luật `deny` (mức FAIL); luật `warn` chỉ cảnh báo.
+| Pha | Công cụ | Kiểm gì |
+|---|---|---|
+| Code | **Gitleaks** v8.30.1 | Secret trong dòng được thêm |
+| Code | **Semgrep** 1.180.0 | SAST — chỉ ra dòng lỗi F01/F02; trong pipeline chỉ chặn cảnh báo **mới** (`devsecops/semgrep-diff.mjs`) |
+| Build | **Conftest** v0.71.1 + `docker_security.rego` | Dockerfile sai cấu hình (F04); `conftest verify -p policy -p report/policy` → **26/26** |
+| Test | **node:test + Supertest** | Chạy app thật: đỏ trước vá → xanh sau vá (11 ca) |
+| Release | **Trivy** 0.76.1 | CVE dependency của image; chỉ chặn CRITICAL không có trong `devsecops/.trivyignore` |
+| Release | **Dockle** 0.4.15 | Image thành phẩm theo CIS (secret trong layer, chạy root) |
+| Deploy | **Conftest** + `compose.rego` | Compose sai: backend mở cổng host (F03), privileged, `docker.sock`… |
+| Operate | **Conftest** + `report/policy/runtime.rego`, `checks/hardening.py` | Container **đang chạy** (`docker inspect`): non-root, `cap_drop`, giới hạn CPU/PID, cổng host |
+| Monitor | **Prometheus** + **Grafana** | Scrape `/metrics` nội bộ, cảnh báo `HighClientErrorRate`; dashboard `http://127.0.0.1:3103` |
+
+**Chặn phát hành** chỉ ở luật `deny` (mức FAIL); luật `warn` chỉ cảnh báo.
+
+**Chạy tự động theo Git** (cần Git Bash, một lần sau khi clone):
+
+```powershell
+& "C:\Program Files\Git\bin\bash.exe" devsecops/install-hooks.sh   # bật hook: core.hooksPath = .githooks
+```
+
+- `git commit` → hook **pre-commit**: Gitleaks, Semgrep, Conftest Dockerfile + compose (vài giây).
+- `git push` → hook **pre-push**: đủ 7 pha của `devsecops/pipeline.sh`, triển khai lên 3102 rồi kiểm Operate/Monitor (khoảng 2 phút).
+- Push lên GitHub / pull request vào `main` → **GitHub Actions** `.github/workflows/devsecops.yml` chạy lại đủ 7 pha.
+- Kịch bản thử 4 lỗi qua `git commit`/`git push`: `report/scanSAC.md` mục *Integration*; chi tiết pipeline: `devsecops/README.md`.
 
 ---
 
@@ -189,8 +212,14 @@ Lệnh chi tiết cho từng cổng (Semgrep SAST, Gitleaks, node:test đỏ→x
 | `README.md` | **File này** — cài máy mới + cách chạy |
 | `DEMO.md` | Runbook đầy đủ: khởi động + chạy mọi demo + từng cổng kiểm soát |
 | `HUONG_DAN_DEMO.md` | Bản tóm tắt nhanh theo từng lỗi |
-| `PHAN_NOI.md` | Kịch bản thuyết trình + 12 câu hỏi phản biện |
-| `BaoCao_...gon.pdf` / `.docx` / `report_concise.md` | Báo cáo bản nộp (PDF 28 trang **+ Word sửa được**) và nguồn Markdown |
+| `PHAN_THUYET_TRINH.md` | Kịch bản thuyết trình phần chung + 4 lỗi, câu hỏi phản biện |
+| `TONG_KET_PHAN_CONG.md` | So với Juice Shop gốc, phân công từng tệp, cách chạy, giới hạn còn lại |
+| `scanSAC.md` | Lệnh từng công cụ theo pha + kịch bản kiểm thử tích hợp qua `git commit`/`git push` |
+| `F04_THUYET_TRINH.md` | Tài liệu sâu về bộ luật Rego, mapping luật → chuẩn |
+| `slide/` | Slide riêng của 4 thành viên (`TV1`–`TV4`) + script dựng (`slide/build/`) |
+| `evidence/` | Log gốc của từng lần chạy, kèm lệnh, thời điểm, phiên bản, mã thoát |
+| `BaoCao_...gon.pdf` / `.docx` / `report_concise.md` | Báo cáo bản nộp (PDF 35 trang **+ Word sửa được**) và nguồn Markdown |
+| `SLIDE_BaoCao_JuiceShop.pptx` | Slide trình bày của nhóm |
 | `demos/` | 4 script demo `tv1`–`tv4` + `common.py` |
 | `checks/hardening.py` | Bảng cấu hình an toàn container đang chạy (ảnh `hardening.png`) |
 | `policy/` | Luật Rego kiểm tra container **runtime** (`docker inspect`) |
@@ -212,6 +241,7 @@ Lệnh chi tiết cho từng cổng (Semgrep SAST, Gitleaks, node:test đỏ→x
 ## 10. Dừng / dọn môi trường
 
 ```powershell
+docker compose -f docker-compose.monitoring.yml down   # dừng Prometheus + Grafana
 docker compose down               # dừng bản sau vá (giữ volume log)
 docker stop juice-report-lab      # dừng container đối chứng
 ```

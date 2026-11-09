@@ -1,9 +1,9 @@
 # F04 — Tài liệu thuyết trình: Sai cấu hình an toàn của container (Hồ Anh Vũ)
 
-> Dựa trên `report/SLIDE_BaoCao_JuiceShop.pptx` (slide 12 bộ luật, slide 14 kết quả quét, **slide 19 F04**, **slide 26 phần việc thành viên 4/4**) và báo cáo `report/BaoCao_DevSecOps_JuiceShop_gon.docx` mục 5.4, Bảng 10, Phụ lục A.
+> Dựa trên `report/SLIDE_BaoCao_JuiceShop.pptx` (slide 13 bộ luật, slide 15 kết quả quét, **slide 20 F04**, **slide 27 phần việc thành viên 4/4**; slide riêng `report/slide/TV4_HoAnhVu_B26CHAT048.pptx`) và báo cáo `report/BaoCao_DevSecOps_JuiceShop_gon.docx` mục 5.4, Bảng 10, Phụ lục A.
 > Mọi output trong tài liệu là **kết quả chạy thật** (Conftest v0.71.1) — có thể chạy lại bằng lệnh kèm theo.
 
-Mục lục: 1. Thông điệp chính · 2. Kịch bản nói slide 19 · 3. Kịch bản nói slide 26 · 4. Rego cơ bản để hiểu code · 5. Giải thích từng dòng `docker_security.rego` · 6. Giải thích 13 ca kiểm thử · 7. `runtime.rego` và Dockle (3 lớp kiểm) · 8. Hậu quả an ninh của từng vi phạm · 9. Những gì bộ luật CHƯA bắt (đã chạy thử) · 10. Hướng mở rộng · 11. Câu hỏi phản biện · 12. Chất liệu "chém gió" · 13. Checklist trước giờ G · 14. Tổng hợp toàn bộ luật (Dockerfile + compose + runtime)
+Mục lục: 1. Thông điệp chính · 2. Kịch bản nói slide 20 · 3. Kịch bản nói slide 27 · 4. Rego cơ bản để hiểu code · 5. Giải thích từng dòng `docker_security.rego` · 6. Giải thích 13 ca kiểm thử · 7. `runtime.rego` và Dockle (3 lớp kiểm) · 8. Hậu quả an ninh của từng vi phạm · 9. Những gì bộ luật CHƯA bắt (đã chạy thử) · 10. Hướng mở rộng · 11. Câu hỏi phản biện · 12. Chất liệu "chém gió" · 13. Checklist trước giờ G · 14. Tổng hợp toàn bộ luật (Dockerfile + compose + runtime) + mapping luật → chuẩn (14.4)
 
 ---
 
@@ -18,7 +18,7 @@ Mục lục: 1. Thông điệp chính · 2. Kịch bản nói slide 19 · 3. K�
 
 ---
 
-## 2. Kịch bản nói — Slide 19 (F04), ~4 phút kể cả demo
+## 2. Kịch bản nói — Slide 20 (F04), ~4 phút kể cả demo
 
 **[Mở đầu — chỉ vào ô F04 và các nhãn bên phải]**
 "Em là Hồ Anh Vũ, phụ trách F04 — sai cấu hình an toàn của container. Đối chiếu CIS Docker Benchmark, NIST SP 800-190 và PCI-DSS; về GDPR là Điều 25(1) — bảo vệ từ khi thiết kế, và 32(1)(d) — kiểm thử định kỳ; nằm ở pha Build → Release."
@@ -64,7 +64,7 @@ hotfix image F01/F02                        0     -                             
 
 ---
 
-## 3. Kịch bản nói — Slide 26 (phần việc thành viên 4/4), ~1,5 phút
+## 3. Kịch bản nói — Slide 27 (phần việc thành viên 4/4), ~1,5 phút
 
 "Em là Hồ Anh Vũ, B26CHAT048, phụ trách khâu Build & Release của container với Policy và Compliance as Code — pha 2, 6, 7.
 - **Pha 2**, Conftest + `docker_security.rego`: kiểm Dockerfile *trước khi build* — 4 nhóm luật, 13 ca kiểm thử.
@@ -474,7 +474,7 @@ Cách nói khi bị hỏi "luật có lách được không?": "Có, nhóm đã 
 10. **Luật chạy ở đâu trong pipeline?** — Pha Build của `devsecops/pipeline.sh` (cũng trong GitHub Actions và Git hook): `conftest verify` rồi `conftest test Dockerfile deploy/Dockerfile.hotfix --parser dockerfile`. FAIL thì exit 1, pipeline dừng.
 11. **Vì sao gắn GDPR Điều 25(1)?** — Điều 25(1) là bảo vệ dữ liệu *từ khi thiết kế*: image an toàn ngay từ Dockerfile thay vì vá sau khi chạy. Điều 32(1)(d): kiểm thử định kỳ hiệu quả biện pháp — `conftest verify` chạy mỗi lần build.
 12. **Có thể bỏ qua cổng bằng cách đổi tên file Dockerfile?** — Pipeline gọi đích danh các Dockerfile được build; muốn chắc hơn thì quét mọi tệp `*Dockerfile*` trong repo, hoặc chuyển sang kiểm ở admission controller (mục 10).
-13. **Bộ luật lấy tiêu chuẩn từ đâu?** — CIS Docker Benchmark §4 (image) và §5 (runtime), NIST SP 800-190 (an toàn container), OCI image-spec (nhãn), PCI-DSS 2.2/8.2.1, GDPR 25/32. Mỗi thông báo vi phạm **trích sẵn điều khoản** để người sửa biết vì sao.
+13. **Bộ luật lấy tiêu chuẩn từ đâu?** — CIS Docker Benchmark §4 (image) và §5 (runtime), NIST SP 800-190 (an toàn container), OCI image-spec (nhãn), PCI-DSS, GDPR 25/32. Mỗi thông báo vi phạm **trích sẵn điều khoản** để người sửa biết vì sao. Mapping từng luật, mức khớp (trực tiếp / một phần / tham chiếu) và các trích dẫn nên chỉnh (PCI 8.2.1 là số của v3.2.1 → v4.0 là 8.6.2): mục **14.4**.
 14. **Bao lâu chạy một lần, có chậm không?** — Mỗi lần build; Conftest chạy vài giây trong container `openpolicyagent/conftest:v0.71.1`.
 15. **Nếu một đội cần mở cổng 5432 hợp lệ?** — Không nên đóng gói CSDL chung image ứng dụng; nếu là image CSDL riêng thì dùng cơ chế ngoại lệ có thời hạn và lý do (mục 10), không sửa tắt luật cho mọi người.
 
@@ -517,7 +517,7 @@ Cách nói khi bị hỏi "luật có lách được không?": "Có, nhóm đã 
 
 ## 14. Tổng hợp toàn bộ luật — 3 bộ, 25 luật, 26 ca kiểm thử
 
-Ba bộ luật Rego kiểm **ba thứ khác nhau ở ba thời điểm**. `deny` = **FAIL** (exit 1, pipeline dừng), `warn` = **WARN** (chỉ nhắc, exit 0).
+Ba bộ luật Rego kiểm **ba thứ khác nhau ở ba thời điểm**. `deny` = **FAIL** (exit 1, pipeline dừng), `warn` = **WARN** (chỉ nhắc, exit 0). Cột "Chuẩn" ở 14.1–14.3 chỉ ghi số hiệu; điều khoản nói gì và luật khớp tới đâu xem **14.4**.
 
 | Bộ luật | Kiểm cái gì | Pha | `input` là gì | Luật | Ca test |
 |---|---|---|---|---|---|
@@ -571,7 +571,76 @@ Luật cổng hiểu đủ 3 cách viết `ports` của Compose: chuỗi `"127.0
 
 Tất cả là FAIL. Lớp này bắt trường hợp **tệp đúng nhưng chạy sai** (ai đó `docker run` tay, override bị quên).
 
-### 14.4 Cùng một rủi ro, kiểm ở nhiều lớp
+### 14.4 Mapping luật → chuẩn: điều khoản nói gì, luật thực thi tới đâu
+
+**Cách đọc mapping.** Chuẩn nói **phải đạt điều gì** (yêu cầu); luật Rego là **một cách kiểm tự động** yêu cầu đó trên một loại tệp, ở một thời điểm. Vì vậy mỗi dòng mapping có một **mức khớp**:
+- ● **Trực tiếp** — luật kiểm đúng điều mục yêu cầu (vd CIS 4.9 "dùng COPY thay ADD" ↔ luật cấm `ADD`).
+- ◐ **Một phần** — luật chỉ kiểm một phần yêu cầu, hoặc kiểm ở lớp khác với lớp mà điều khoản nói tới (vd CIS 5.8 nói cổng **đang mở** lúc chạy, luật kiểm cổng **khai báo** trong Dockerfile).
+- ○ **Tham chiếu** — chuẩn không có điều mục riêng cho đúng việc này; luật là thực hành tốt **hỗ trợ** tinh thần của chuẩn.
+
+> Câu chốt khi bị hỏi: **"Đạt bộ luật ≠ đạt chứng nhận CIS hay PCI-DSS."** Bộ luật tự động hóa một số điều mục *liên quan tới 4 tình huống*; đánh giá tuân thủ đầy đủ cần kiểm cả host, daemon, quy trình, con người.
+
+**a) Các chuẩn được trích — mỗi chuẩn là loại tài liệu gì**
+
+| Chuẩn | Loại | Phần dùng tới | Ghi chú khi trích |
+|---|---|---|---|
+| **CIS Docker Benchmark** | Danh mục cấu hình an toàn (checklist), mỗi mục có *Audit* (cách kiểm) + *Remediation* (cách sửa) | §4 *Container Images and Build File* (image/Dockerfile), §5 *Container Runtime* (lúc chạy) | Số mục §5 có thể lệch giữa các phiên bản Benchmark → khi nói, **nêu tên mục** kèm số |
+| **NIST SP 800-190** — *Application Container Security Guide* | Hướng dẫn: §3 liệt kê rủi ro, §4 biện pháp tương ứng | §3.1/§4.1 rủi ro image; §3.4/§4.4 rủi ro container | Không có "mục pass/fail" — trích như cơ sở rủi ro |
+| **OCI image-spec** | Đặc tả định dạng image | `annotations`: định nghĩa các khóa `org.opencontainers.image.*` | Đặc tả **định nghĩa** khóa, **không bắt buộc** có — "bắt buộc" là chính sách của nhóm |
+| **NIST SSDF (SP 800-218)** | Bộ thực hành phát triển phần mềm an toàn (PO/PS/PW/RV) | PS.3 (lưu giữ, dữ liệu nguồn gốc), PW.4 (dùng lại thành phần an toàn, kiểm chứng thành phần lấy về) | Mức thực hành, không phải điều mục kỹ thuật |
+| **SLSA** | Khung mức độ an toàn chuỗi cung ứng build | Provenance do **nền tảng build** sinh và **ký** | Chỉ **tham chiếu** — nhãn tự khai không đạt mức SLSA nào |
+| **PCI-DSS** | Tiêu chuẩn **bắt buộc** với tổ chức xử lý dữ liệu thẻ | Req 2 (cấu hình an toàn), Req 7 (đặc quyền tối thiểu), Req 8 (xác thực, mật khẩu) | Bản hiện hành là **v4.0.1** (v3.2.1 đã hết hiệu lực 3/2024) — số mục thay đổi, xem ghi chú (d) |
+| **GDPR** | Luật EU, yêu cầu **kết quả**, không chỉ định kỹ thuật | Đ.25(1) bảo vệ từ khi thiết kế; Đ.25(2) theo mặc định; Đ.32(1)(b) bí mật/toàn vẹn; Đ.32(1)(d) kiểm thử định kỳ | Luật là **bằng chứng biện pháp kỹ thuật**, không tự làm hệ thống "tuân thủ GDPR" |
+
+**b) `docker_security.rego` (F04) — từng luật**
+
+| Luật | Điều khoản | Điều khoản yêu cầu gì | Luật thực thi tới đâu | Khớp |
+|---|---|---|---|:-:|
+| Thiếu `USER` / `USER` root | **CIS 4.1** *Ensure that a user for the container has been created* | Tạo user không phải root trong image và chuyển sang user đó bằng `USER`; *Audit* của CIS là xem `Config.User` của container đang chạy có rỗng/root không | Kiểm ngay trên Dockerfile, **chặt hơn** CIS: chỉ tính `USER` ở **stage cuối**, tách UID khỏi group (`0:1000` vẫn là root) | ● |
+| | **NIST 800-190 §3.1.2** *Image configuration defects* / §4.1.2 | Image cấu hình chạy với đặc quyền cao hơn cần là một lỗi cấu hình; biện pháp: dùng công cụ **kiểm và cưỡng chế** cấu hình an toàn | Bộ luật chính là "công cụ cưỡng chế" mà §4.1.2 nói tới | ● |
+| | **PCI-DSS 2.2** (cấu hình an toàn) | Có tiêu chuẩn cấu hình cho mọi thành phần hệ thống và áp dụng nó | Đúng tinh thần, nhưng "đặc quyền tối thiểu cho tài khoản ứng dụng" là **v4.0 Req 7.2.5** (tài khoản ứng dụng/hệ thống chỉ có quyền tối thiểu cần thiết) | ◐ |
+| `USER` không phải số (WARN) | CIS 4.1 (tinh thần) | CIS không đòi UID số | Thắt chặt của nhóm: tên user tra theo `/etc/passwd` của image; Kubernetes `runAsNonRoot` không xác minh được tên | ○ |
+| `EXPOSE` cổng quản trị/CSDL | **CIS 5.8** *Ensure that only needed ports are open on the container* | Mục **runtime**: cổng **đang mở** của container chỉ gồm cổng cần thiết | Kéo kiểm tra sang **trước build** trên cổng *khai báo*; `EXPOSE` không tự mở cổng → cổng mở thật được kiểm ở `compose.rego` + `runtime.rego` | ◐ |
+| | **NIST 800-190 §3.1.2** | Ví dụ lỗi cấu hình image: chạy dịch vụ không cần thiết như **SSH daemon** | Cổng 22/23 là dấu hiệu có sshd/telnet trong image | ● |
+| | (nên thêm) **PCI-DSS v4.0 2.2.4**, **CIS 5.6** | 2.2.4: chỉ bật dịch vụ/giao thức/daemon cần thiết. 5.6: không chạy sshd trong container | Khớp sát hơn PCI 2.2 chung chung | ● |
+| Thiếu nhãn `…source` / `…revision` | **OCI image-spec** (annotations) | `source` = URL lấy mã nguồn build image; `revision` = mã phiên bản (commit) trong hệ quản lý mã | Chỉ kiểm **có khóa**; không kiểm giá trị đúng (lỗ B4, mục 9) | ◐ |
+| | **NIST SSDF PS.3.2** | Thu thập, bảo vệ, chia sẻ **dữ liệu nguồn gốc** của từng bản phát hành | Nhãn là dữ liệu nguồn gốc **tự khai** | ◐ |
+| | **SLSA** | Provenance do nền tảng build sinh ra và **ký**, người dùng xác minh được | Không đạt — vì vậy thông báo ghi "chưa đánh giá đạt mức SLSA" | ○ |
+| `FROM …:latest` | CIS §4 (gần nhất: **4.2** *trusted base images*) | Chỉ dùng base image tin cậy, đã kiểm | CIS **không có mục riêng** "cấm `:latest`" — luật là thực hành tốt: tag trôi → image đã kiểm ≠ image triển khai | ○ |
+| | **NIST SSDF PW.4** | Dùng lại thành phần đã được bảo đảm an toàn; kiểm chứng thành phần lấy về | `:latest` làm mất khả năng kiểm chứng "đúng bản đã duyệt" | ○ |
+| `FROM` không ghim digest (WARN) | CIS §4, SSDF PW.4 | Như trên | **Không phải CIS 4.5** — 4.5 là *Content Trust* (xác minh **chữ ký**), digest chỉ cố định **nội dung** | ○ |
+| Dùng `ADD` | **CIS 4.9** *Ensure that COPY is used instead of ADD* | `ADD` tải từ URL và tự giải nén tar → đưa nội dung ngoài kiểm soát vào image | Cấm mọi `ADD` | ● |
+| Bí mật trong `ENV`/`ARG` | **CIS 4.10** *Ensure secrets are not stored in Dockerfiles* | Không để bí mật trong Dockerfile (lộ qua `docker history`, `docker inspect`) | **Một phần**: chỉ dò theo **tên khóa**; bí mật dưới tên vô hại lọt (B3), `*_FILE` bị chặn nhầm (B7) | ◐ |
+| | **NIST 800-190 §3.1.4** *Embedded clear text secrets* / §4.1.4 | Bí mật để ngoài image, cấp lúc chạy qua cơ chế quản lý bí mật | Đúng rủi ro này — **nên thêm vào trích dẫn** | ● |
+| | **PCI-DSS 8.2.1** (theo **v3.2.1**) | v3.2.1: credential phải không đọc được khi lưu/truyền (mã hóa mạnh) | Ở **v4.0** đổi số: **8.3.2** (như trên) và **8.6.2** — mật khẩu tài khoản ứng dụng/hệ thống **không được ghi cứng** trong script, tệp cấu hình, mã nguồn → **8.6.2 khớp sát nhất** | ◐ |
+| | **GDPR Đ.32(1)(b)** | Bảo đảm tính bí mật của hệ thống xử lý | Bí mật lộ → kẻ tấn công vào được dữ liệu cá nhân | ○ |
+
+**c) `compose.rego` (F03) và `runtime.rego` — từng luật**
+
+| Luật | Điều khoản | Điều khoản yêu cầu gì | Luật thực thi tới đâu | Khớp |
+|---|---|---|---|:-:|
+| F03 NET-02 — backend publish cổng | Luật **riêng của nhóm**; cơ sở: **GDPR Đ.25(2)**, **NIST 800-190 §3.4.2** *Unbounded network access* | 25(2): mặc định không để dữ liệu tiếp cận được bởi số người không xác định. §3.4.2: hạn chế lưu lượng mạng của container | Chỉ dịch vụ gắn nhãn `edge` (proxy) được có cổng host → `/metrics` chỉ đi qua proxy (proxy trả 404) | ● |
+| NET-01 — bind ngoài `127.0.0.1` | **GDPR Đ.32**; (nên thêm) **CIS 5.13** *bind incoming container traffic to a specific host interface* | 5.13: cổng publish phải gắn vào một giao diện mạng cụ thể, không phải mọi giao diện | Đòi đúng `127.0.0.1` (chặt hơn CIS — CIS chỉ đòi "giao diện cụ thể") | ● |
+| `privileged: true` / PRIV-01 | **CIS 5.4** *privileged containers are not used* | Container privileged có gần như mọi quyền của host | Cấm ở compose (trước triển khai) và trên container đang chạy | ● |
+| Mount `docker.sock` | **CIS 5.31** *Docker socket is not mounted inside any containers* | Ai có socket là điều khiển được daemon → root host | Cấm ở compose | ● |
+| Bí mật inline trong `environment` | PCI-DSS 8.2.1 (v4.0: **8.6.2**), GDPR Đ.32; **NIST 800-190 §4.1.4** | Như mục bí mật ở trên | Cho phép `*_FILE` (trỏ tới tệp secret) — làm đúng hơn luật Dockerfile | ◐ |
+| Thiếu `cap_drop: [ALL]` (WARN) / PRIV-03 (FAIL) | **CIS 5.3** *Linux kernel capabilities are restricted* | Bỏ mọi capability không cần thiết | compose chỉ **nhắc**, runtime **chặn** — vì quyết định cuối nằm ở container thật | ◐ / ● |
+| Thiếu `read_only` (WARN) | **CIS 5.12** *container's root filesystem is mounted as read only* | Root filesystem chỉ đọc, chỗ cần ghi dùng volume/tmpfs | Chỉ nhắc — backend Juice Shop cần ghi SQLite nên chưa bật | ◐ |
+| PRIV-02 — UID số ≥ 1 | **CIS 4.1** (đúng phần *Audit* của mục này) | *Audit* của CIS 4.1 chính là xem `Config.User` của container đang chạy | Kiểm đúng chỗ CIS kiểm; chặt hơn lớp Dockerfile (`node` cũng FAIL) | ● |
+| PRIV-04 — `no-new-privileges` | **CIS 5.25** *container is restricted from acquiring additional privileges* | Chặn leo quyền qua tệp setuid/setgid | Đòi `no-new-privileges:true` | ● |
+| RES-02 — giới hạn CPU | **CIS 5.11** (CPU priority/shares), **NIST 800-190 §3.4.3** | Một container không được chiếm hết tài nguyên host | Đòi `NanoCpus > 0` (giới hạn cứng, chặt hơn "shares") | ● |
+| RES-03 — giới hạn PID | **CIS 5.28** *PIDs cgroup limit is used* | Giới hạn số tiến trình → chống fork bomb | Đòi `PidsLimit > 0` | ● |
+
+> `runtime.rego` hiện **không ghi điều khoản trong thông báo** (chỉ mã `PRIV-0x`, `RES-0x`, `NET-0x`); mapping ở bảng trên là tài liệu đối chiếu. `docker_security.rego` và `compose.rego` thì trích điều khoản ngay trong thông báo FAIL.
+
+**d) Những trích dẫn nên chỉnh (nói chủ động nếu bị hỏi)**
+- **PCI-DSS 8.2.1** là số mục của **v3.2.1**. Theo v4.0.1 hiện hành: **8.6.2** (không ghi cứng mật khẩu tài khoản ứng dụng/hệ thống) khớp sát nhất, kèm 8.3.2.
+- **PCI-DSS 2.2** cho LEAST-PRIVILEGE chỉ khớp ở mức "cấu hình an toàn"; đặc quyền tối thiểu đúng nghĩa là **7.2.5**. ATTACK-SURFACE nên trích thêm **2.2.4** (chỉ bật dịch vụ cần thiết).
+- **NET-01** đang chỉ trích GDPR; nên trích thêm **CIS 5.13**.
+- **SECRET-IN-IMAGE** nên trích thêm **NIST 800-190 §3.1.4** — mục nói đúng rủi ro "bí mật dạng rõ trong image".
+- **`:latest` / digest** ghi "CIS §4" là trích **chung**; CIS không có mục riêng — nói là *thực hành tốt*, đừng nói "CIS 4.x quy định".
+
+### 14.5 Cùng một rủi ro, kiểm ở nhiều lớp
 
 | Rủi ro | Dockerfile | Compose | Runtime |
 |---|---|---|---|
@@ -584,14 +653,14 @@ Tất cả là FAIL. Lớp này bắt trường hợp **tệp đúng nhưng ch�
 | Cổng quản trị/CSDL | FAIL | — | — |
 | Nguồn gốc / base image | FAIL / WARN | — | — |
 
-### 14.5 Trạng thái hiện tại của repo (chạy thật)
+### 14.6 Trạng thái hiện tại của repo (chạy thật)
 
 - `conftest verify -p policy -p report/policy`: **26/26** (13 + 6 + 7). Chỉ `-p policy` thì 19/19 như ở mục 2.
 - Dockerfile + hotfix: **0 FAIL**, 2 WARN — `node:24` và `distroless/nodejs24-debian13` chưa ghim digest (hotfix ghim rồi).
 - Compose: **0 FAIL**, 1 WARN — `juice-shop` chưa `read_only`.
 - Runtime: `juice-app-juice-shop-1` và `juice-app-proxy-1` đều **8/8**.
 
-### 14.6 Chạy từng bộ luật bằng Docker (PowerShell, đứng ở gốc repo)
+### 14.7 Chạy từng bộ luật bằng Docker (PowerShell, đứng ở gốc repo)
 
 ```powershell
 docker run --rm -v "${PWD}:/work:ro" -w /work openpolicyagent/conftest:v0.71.1 verify -p policy -p report/policy
@@ -607,6 +676,6 @@ Lỗi hay gặp:
 - **Không ghi `docker inspect … > x.json` trong PowerShell 5.1** (ra UTF-16, Conftest đọc lỗi) → dùng pipe như trên. `docker inspect` 2 container một lần trả **mảng** — `runtime.rego` cần từng object, nên chạy riêng từng container.
 - Git Bash: thay `${PWD}` bằng `$(pwd -W)` và thêm `MSYS_NO_PATHCONV=1` đầu lệnh.
 
-### 14.7 Chưa bắt (tóm tắt mục 9)
+### 14.8 Chưa bắt (tóm tắt mục 9)
 
 Bí mật dưới tên vô hại (B3) · dải cổng `20-25` (B2) · `*_FILE` trong Dockerfile bị chặn nhầm (B7 — compose đã xử lý đúng) · `ARG …==x` (B10) · `USER ${ARG}` mặc định 0 (B5, lớp runtime chặn) · giới hạn RAM (RES-01 bỏ có chủ ý theo phạm vi báo cáo).

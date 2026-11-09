@@ -100,6 +100,7 @@ Table: Công cụ và vai trò
 | Trivy | Quét image (SCA) | Quét CVE dependency + secret + misconfig trên **image đã build** (pha Release); bổ sung mảng SCA mà các công cụ trên không có |
 | Dockle | Lint image (CIS) | Kiểm cấu hình **image sau build** theo CIS Docker — bắt secret bake vào layer (tệp & `ENV`) và user chạy thật/root (pha Release) |
 | Prometheus + Grafana | Giám sát (Operate) | Thu thập `/metrics` nội bộ, cảnh báo bất thường, dashboard vận hành |
+| Git hook + GitHub Actions | Tự động hóa (CI) | Gọi `devsecops/pipeline.sh` để chạy toàn bộ cổng trên theo thứ tự 7 pha mỗi khi commit, push và trên GitHub (mục 4.4) |
 
 ## 3.2. Chính sách và tiêu chuẩn đối chiếu
 
@@ -138,7 +139,7 @@ Table: Bảy pha thực hành ánh xạ vào bốn tình huống
 | 6. Compliance as Code | Kiểm image thành phẩm (CIS) và **container đang chạy** bằng `docker inspect` + Conftest runtime + Dockle | Dockle, `docker inspect`, Conftest | F03, F04 |
 | 7. Kiểm chứng & bàn giao | Chạy lại toàn bộ cổng + quét secret; **giám sát vận hành** | Gitleaks, Conftest; Prometheus/Grafana | — |
 
-Hai cổng kiểm soát bổ trợ đều cho **exit 0** (log gốc kèm thời điểm, phiên bản công cụ, mã thoát): **Gitleaks** quét các commit vá của nhóm — không phát hiện secret (`gitleaks.log`); **Conftest verify** — 19/19 unit test của bộ luật Rego đạt, gồm 13 ca Dockerfile và 6 ca compose (`conftest-verify.log`).
+Hai cổng kiểm soát bổ trợ đều cho **exit 0** (log gốc kèm thời điểm, phiên bản công cụ, mã thoát): **Gitleaks** quét các commit vá của nhóm — không phát hiện secret (`gitleaks.log`); **Conftest verify** — 19/19 unit test của hai bộ luật Dockerfile và compose đạt, gồm 13 ca Dockerfile và 6 ca compose (`conftest-verify.log`); tính cả 7 ca của luật runtime (`report/policy/runtime_test.rego`) là **26/26**, đúng con số pipeline chạy ở pha Build (mục 4.4).
 
 Mỗi lỗi đi kèm một script demo (`demos/tv1`…`tv4`) tái hiện lỗi trước khi vá và kiểm chứng sau khi vá; các script này được trình bày trong từng mục tương ứng ở phần 5.
 
@@ -162,7 +163,7 @@ Các cổng quét tự động được chạy trên mã nguồn và cấu hình
 
 !fig[dockle.png](Dockle quét trên image Juice Shop: bản đóng gói sai bị FATAL (secret trong tệp id_rsa giả lập + secret ENV) và WARN chạy root; image triển khai của nhóm không có FATAL/WARN){width=16}
 
-*Tái lập:* các lệnh quét (Semgrep, Gitleaks, Conftest, Trivy, Dockle, `docker inspect`, Prometheus) được gom ở tài liệu ngoài `report/HUONG_DAN_DEMO.md` và `report/scanSAC.md`; log gốc kèm mã thoát ở `report/evidence/`, ảnh dựng từ `report/figures/capture_runs.py` và `capture_scans.py`.
+*Tái lập:* các lệnh quét (Semgrep, Gitleaks, Conftest, Trivy, Dockle, `docker inspect`, Prometheus, Grafana) được gom ở tài liệu ngoài `report/HUONG_DAN_DEMO.md` và `report/scanSAC.md`; log gốc kèm mã thoát ở `report/evidence/`, ảnh dựng từ `report/figures/capture_runs.py` và `capture_scans.py`.
 
 ## 4.2. Bảng kết quả hợp nhất
 
@@ -186,11 +187,56 @@ Chính `/metrics` mà F03 chặn ra ngoài lại là *nguồn cấp dữ liệu 
 
 !fig[grafana-dashboard.png](Dashboard Grafana (portal giám sát) với số liệu thật từ ứng dụng đang chạy: người dùng đã đăng ký, đơn hàng, HTTP theo status_code, RAM tiến trình){width=16}
 
-Phần **phát hiện**: luật cảnh báo `HighClientErrorRate` theo dõi **số phản hồi 4XX tại backend** (ngưỡng `>20` trong 2 phút). Khi nhóm gửi 60 yêu cầu đăng nhập sai **trực tiếp tới backend** (mô phỏng dò mật khẩu), số 4XX vọt lên và cảnh báo **chuyển trạng thái FIRING** (@fig(monitoring)) — minh họa khả năng phát hiện bất thường ở tầng quan sát mà mã nguồn không tự biết. Đây là ngưỡng tổng quát trên backend (chưa phân biệt endpoint hay nguồn truy cập); FIRING là *trạng thái của luật*, còn việc giám sát các yêu cầu bị Nginx chặn ngay tại proxy (vd rate-limit 429) và định tuyến thông báo tới người vận hành (Alertmanager) thuộc hướng mở rộng (xem *Giới hạn*).
+Phần **phát hiện**: luật cảnh báo `HighClientErrorRate` theo dõi **số phản hồi 4XX tại backend** (ngưỡng `>20` trong 2 phút). Khi nhóm gửi 60 yêu cầu đăng nhập sai **trực tiếp tới backend** (mô phỏng dò mật khẩu), số 4XX vọt lên và cảnh báo **chuyển trạng thái FIRING** (@fig(monitoring)) — minh họa khả năng phát hiện bất thường ở tầng quan sát mà mã nguồn không tự biết. Đây là ngưỡng tổng quát trên backend (chưa phân biệt endpoint hay nguồn truy cập); FIRING là *trạng thái của luật*, còn việc giám sát các yêu cầu bị Nginx chặn ngay tại proxy (vd rate-limit 429) và định tuyến thông báo tới người vận hành (Alertmanager) thuộc hướng mở rộng.
 
 !fig[monitoring.png](Giám sát vận hành: Prometheus scrape /metrics (target UP), truy vấn số liệu thật, và cảnh báo HighClientErrorRate chuyển FIRING khi mô phỏng dò đăng nhập){width=16}
 
-*Lưu ý ranh giới:* stack giám sát mở thêm hai cổng loopback cho người vận hành — `127.0.0.1:9090` (Prometheus) và `127.0.0.1:3103` (Grafana, bật anonymous access phục vụ demo lab) — và chạy ở compose riêng chưa thuộc phạm vi `compose.rego`. Vì vậy phát biểu "chỉ reverse proxy publish cổng" ở mục 3 áp dụng cho **stack ứng dụng**; ranh giới tin cậy đầy đủ (gồm cổng giám sát và người dùng quản trị lab) được nêu trong *Giới hạn*.
+*Lưu ý ranh giới:* stack giám sát mở thêm hai cổng loopback cho người vận hành — `127.0.0.1:9090` (Prometheus) và `127.0.0.1:3103` (Grafana, bật anonymous access phục vụ demo lab) — và chạy ở compose riêng chưa thuộc phạm vi `compose.rego`. Vì vậy phát biểu "chỉ reverse proxy publish cổng" ở mục 3 áp dụng cho **stack ứng dụng**; chính stack giám sát hiện còn vi phạm luật `F03 NET-02` của nhóm (Prometheus, Grafana mở cổng mà không phải dịch vụ biên) — ghi nhận là giới hạn cần khắc phục.
+
+## 4.4. Tự động hóa: pipeline gắn với Git
+
+Các cổng ở mục 4.1–4.3 không chạy tay từng lệnh mà được gói vào **một script** `devsecops/pipeline.sh`, chạy theo đúng thứ tự 7 pha của Hình quy trình. Git gọi script này ở ba điểm (bảng dưới; hai hook trên máy có thể bị bỏ qua bằng `--no-verify`), nên máy thành viên và GitHub chạy **cùng một bộ cổng**; cổng nào FAIL thì script trả `exit 1` và Git hủy thao tác (hoặc step trên GitHub chuyển đỏ).
+
+Table: Ba điểm kích hoạt pipeline
+| Kích hoạt | Chạy gì | Thời gian | Bỏ qua được? |
+|---|---|---|---|
+| `git commit` → hook `.githooks/pre-commit` | Cổng tĩnh trên phần đã `git add`: Gitleaks, Semgrep, Conftest Dockerfile + compose | vài giây – 1 phút | Được |
+| `git push` → hook `.githooks/pre-push` | Đủ 7 pha trên các commit sắp đẩy: build image, kiểm thử, quét image, triển khai lên 3102 rồi kiểm tra vận hành | khoảng 2 phút | Được |
+| GitHub Actions `.github/workflows/devsecops.yml` | Đủ 7 pha, mỗi pha một step, triển khai trên máy ảo của GitHub; lưu log từng cổng làm artifact | khoảng 5 phút | **Không** |
+
+Table: Cổng của từng pha trong pipeline
+| Pha | Cổng | Chặn khi |
+|---|---|---|
+| Code | Gitleaks · Semgrep | Có secret trong dòng **được thêm**; có cảnh báo SAST **mới** |
+| Build | `conftest verify` (26 ca) · `docker_security.rego` · `tsc` · `docker build` | Luật Rego sai; Dockerfile vi phạm; lỗi biên dịch |
+| Test | node:test + Supertest | Một ca kiểm thử bảo mật đỏ |
+| Release | Trivy · Dockle → gắn tag phát hành | CVE CRITICAL **mới**; CIS WARN/FATAL |
+| Deploy | `compose.rego` · `docker compose up --wait` | Compose vi phạm; container không healthy |
+| Operate | `runtime.rego` trên `docker inspect` · gọi HTTP qua proxy | Container chạy root/thiếu `cap_drop`…; `/metrics` ≠ 404; thiếu header; không có 429 |
+| Monitor | Prometheus | Target không UP; chưa nạp luật cảnh báo |
+
+Ba quyết định thiết kế giúp pipeline dùng được trên một ứng dụng **cố ý chứa lỗ hổng**:
+
+- **Chỉ chặn cái mới.** `devsecops/semgrep-diff.mjs` so cảnh báo Semgrep của bản mới với bản gốc của cùng tệp (nhận diện theo luật + nội dung dòng, không theo số dòng), nên 38 cảnh báo có sẵn không chặn mọi thay đổi về sau; Gitleaks chỉ quét dòng được thêm; Trivy bỏ qua 11 CVE CRITICAL có sẵn của image gốc, liệt kê kèm gói và bản sửa trong `devsecops/.trivyignore`.
+- **Image chỉ được phát hành khi qua cổng.** Pha Build tạo image *ứng viên* `juice-shop:ci-<sha>`; chỉ khi Test và Release đều đạt mới gắn tag `juice-shop:hotfix-f01-f02` mà compose triển khai — bản lỗi không thể lên 3102.
+- **Lọc theo loại thay đổi.** Chỉ sửa tài liệu thì chỉ chạy Gitleaks; sửa mã hoặc hạ tầng thì chạy đủ. Pha nào FAIL thì các pha sau dừng (riêng pre-commit chạy hết cổng tĩnh để thấy mọi lỗi một lần).
+
+Mỗi tình huống dưới đây được thử bằng **`git commit` / `git push` thật** (kịch bản ở `report/scanSAC.md`), sau đó trả repo về trạng thái sạch:
+
+Table: Kiểm chứng tích hợp — đưa lỗi trở lại và quan sát cổng chặn
+| Tình huống | Bị chặn ở | Kết quả |
+|---|---|---|
+| Đưa lại `login.ts` chưa vá (F01) | commit · Code | Semgrep: 1 cảnh báo mới `express-sequelize-injection` |
+| Ghi khóa AWS giả vào mã | commit · Code | Gitleaks: leaks found 1 |
+| Đưa lại `fileServer.ts` chưa vá (F02) | push · Test | Commit qua (Semgrep không thấy); ca null byte nhận 200 thay vì 403 |
+| Backend mở cổng `0.0.0.0:3000` (F03) | commit · Deploy | `compose.rego`: `F03 NET-02` + `NET-01` |
+| Proxy bỏ chặn `/metrics` (F03) | push · Operate | Không luật tĩnh nào đọc `nginx.conf`; sau triển khai `GET /metrics` → 200 |
+| Dockerfile bỏ `USER` (F04) | commit · Build | `docker_security.rego`: LEAST-PRIVILEGE |
+| Container chạy root, bỏ `cap_drop` (F04) | push · Operate | `runtime.rego`: PRIV-02, PRIV-03 |
+| Đẩy bản đã vá | — | pre-push: 21 PASS · 0 FAIL, khoảng 1 phút 40 giây |
+| GitHub Actions trên `main` (`full=true`) | — | Đủ 7 pha, mọi step xanh |
+
+Hook trên máy có thể bị bỏ qua bằng `--no-verify`, nên cổng bắt buộc cuối cùng là GitHub Actions; để workflow thực sự chặn được việc merge, nhánh `main` cần bật branch protection yêu cầu job *DevSecOps pipeline* đạt — việc này chưa làm.
 
 # 5. Bốn lỗi an toàn: phát hiện và xử lý
 
@@ -414,9 +460,11 @@ Lệnh `conftest verify` chạy toàn bộ chính sách đạt **19/19** ca ki�
 
 Báo cáo minh họa quy trình **phát hiện – sửa – kiểm chứng** cho hai lỗi mã nguồn (F01 SQL injection ở đăng nhập, F02 Poison Null Byte làm lộ tệp sao lưu), một tình huống phơi nhiễm endpoint giám sát (F03) và một tình huống cấu hình container sai **chủ động dựng** để kiểm tra bộ policy (F04). Toàn bộ được thể hiện dưới dạng **Security as Code** — với **Policy as Code** (mở rộng thành **Compliance as Code**), SAST/SCA, kiểm thử bảo mật và giám sát là các kỹ thuật con — trong một chuỗi kiểm soát DevSecOps chạy được, kèm log gốc và mã bằng chứng (mục 4.2).
 
-Chuỗi kiểm soát trải khắp vòng đời — phát hiện lỗ hổng SAST/SCA (Semgrep, Trivy) và kiểm thử động ở Code/Test, Policy as Code (Conftest) ở Build/Deploy, đến Compliance as Code (Dockle/CIS + `docker inspect`) và giám sát Prometheus/Grafana ở Operate. Phần đóng góp của nhóm — trong phạm vi bốn tình huống — gồm: bản vá F01/F02 kèm kiểm thử hồi quy; reverse proxy và giới hạn tốc độ cho F03; bộ luật Rego (Dockerfile + compose, 19 unit test) cho F04; quét **CVE/SCA (Trivy)** và kiểm **CIS image (Dockle)** ở pha Release; và **giám sát vận hành bằng Prometheus/Grafana kèm cảnh báo** fire thật ở pha Operate. Kho mã Juice Shop gốc **đã có** CI/CD, CodeQL và tạo SBOM; báo cáo không khẳng định dự án gốc thiếu tự động hóa bảo mật, đóng góp ở đây là các kiểm soát **bổ sung, hướng dữ liệu cá nhân**.
+Chuỗi kiểm soát trải khắp vòng đời — phát hiện lỗ hổng SAST/SCA (Semgrep, Trivy) và kiểm thử động ở Code/Test, Policy as Code (Conftest) ở Build/Deploy, đến Compliance as Code (Dockle/CIS + `docker inspect`) và giám sát Prometheus/Grafana ở Operate. Phần đóng góp của nhóm — trong phạm vi bốn tình huống — gồm: bản vá F01/F02 kèm kiểm thử hồi quy; reverse proxy và giới hạn tốc độ cho F03; bộ luật Rego (Dockerfile + compose + runtime, 26 unit test) cho F04 và F03; quét **CVE/SCA (Trivy)** và kiểm **CIS image (Dockle)** ở pha Release; và **giám sát vận hành bằng Prometheus/Grafana kèm cảnh báo** fire thật ở pha Operate. Kho mã Juice Shop gốc **đã có** CI/CD, CodeQL và tạo SBOM; báo cáo không khẳng định dự án gốc thiếu tự động hóa bảo mật, đóng góp ở đây là các kiểm soát **bổ sung, hướng dữ liệu cá nhân**.
 
-Các giới hạn về phạm vi thực nghiệm và hướng mở rộng được trình bày trong tài liệu đi kèm *Giới hạn và hướng mở rộng* (`report/GIOI_HAN_VA_HUONG_MO_RONG.md`).
+Toàn bộ các cổng trên được gói thành **một pipeline 7 pha gắn với Git** (mục 4.4): hook `pre-commit`/`pre-push` chặn ngay trên máy thành viên, GitHub Actions chạy lại đủ 7 pha làm cổng cuối; cả 7 tình huống đưa lỗi F01–F04 trở lại đã thử đều bị chặn đúng pha.
+
+Các giới hạn còn lại và việc cần làm tiếp được tổng hợp trong tài liệu đi kèm `report/TONG_KET_PHAN_CONG.md` (mục 2.4): chưa bật branch protection cho `main`, stack giám sát chưa đạt chính `compose.rego`, Grafana ẩn danh quyền Admin, và cổng Test vẫn qua nếu không còn ca kiểm thử nào.
 
 # 7. Tài liệu tham khảo
 
