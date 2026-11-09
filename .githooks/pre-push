@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# DevSecOps — cổng trước khi push: chạy đủ Code → Build → Test → Release → Deploy (chỉ kiểm chính sách)
-# trên các commit sắp đẩy (remote..HEAD). Đạt thì ghi dấu theo SHA, nên đẩy cùng commit lên nhánh
-# thứ hai (main + fix/f01-f04) không chạy lại.
+# DevSecOps — cổng trước khi push: chạy đủ 7 pha Code → Build → Test → Release → Deploy (triển khai thật
+# lên 3102) → Operate → Monitor trên các commit sắp đẩy (remote..HEAD). Đạt thì ghi dấu theo SHA, nên đẩy
+# cùng commit lên nhánh thứ hai (main + fix/f01-f04) không chạy lại.
 # Bỏ qua khẩn cấp: git push --no-verify  (CI vẫn chặn lại ở GitHub Actions)
 remote=${1:-origin}
 top=$(git rev-parse --show-toplevel)
@@ -22,6 +22,6 @@ done
 if [ -f "$top/.devsecops/pass-$head" ] && [ -z "$(git status --porcelain --untracked-files=no)" ]; then
   echo "pre-push: $head đã đạt pipeline trước đó — bỏ qua."; exit 0
 fi
-args=(--no-apply --mark)
+args=(--mark)
 [ -n "$base" ] && args+=(--base "$base")
-exec bash "$top/devsecops/pipeline.sh" "${args[@]}" code build test release deploy
+exec bash "$top/devsecops/pipeline.sh" "${args[@]}" code build test release deploy operate monitor

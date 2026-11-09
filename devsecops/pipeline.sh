@@ -79,7 +79,7 @@ has_infra() { [ "$FULL" = 1 ] || [ -n "$INFRA_CHANGED" ]; }
 nlines() { [ -z "$1" ] && echo 0 || printf '%s\n' "$1" | wc -l | tr -d ' '; }
 
 # ---------- khung chạy cổng ----------
-RESULTS=() FAILED=0 SEQ=0
+RESULTS=() FAILED=0 SEQ=0 DEPLOY_SKIPPED=0
 for s in "${STAGES[@]}"; do rm -f "$OUT"/[0-9][0-9]-"${s^}".log; done   # chỉ xóa log của các pha chạy lần này (CI gọi từng pha một)
 record() { RESULTS+=("$1|$2|$3|$4"); }
 line() {   # căn cột theo số ký tự (printf %-Ns đếm byte, lệch với tiếng Việt có dấu)
@@ -215,6 +215,8 @@ deploy_apply() {
   docker volume create juice-report-accesslogs >/dev/null
   docker run --rm --user 0 --entrypoint chown -v juice-report-accesslogs:/logs "$NGINX_IMG" 101:101 /logs || return 1
   docker compose up -d --no-build --wait --wait-timeout 240 || return 1
+  # nginx.conf / proxy-start.sh là bind mount: compose không tạo lại proxy khi tệp đổi -> khởi động lại để nạp cấu hình mới
+  [ -n "$(pick '^deploy/(nginx\.conf|proxy-start\.sh)$')" ] && { docker compose restart proxy || return 1; }
   sleep 5                                               # proxy không có healthcheck: chờ rồi xác nhận vẫn còn chạy
   docker compose ps
   local svc; for svc in juice-shop proxy; do
@@ -222,7 +224,7 @@ deploy_apply() {
   done
 }
 st_deploy() {
-  if ! has_app && ! has_infra; then skip Deploy "Deploy" "không đổi mã/hạ tầng"; return; fi
+  if ! has_app && ! has_infra; then skip Deploy "Deploy" "không đổi mã/hạ tầng"; DEPLOY_SKIPPED=1; return; fi
   gate Deploy "Conftest — docker-compose.yml (compose.rego)" conftest test docker-compose.yml -p policy --namespace compose
   gate Deploy "docker compose config" docker compose config -q
   if [ "$QUICK" = 1 ] || [ "$NO_APPLY" = 1 ]; then skip Deploy "docker compose up (3102)" "chỉ kiểm chính sách"; return; fi
@@ -254,6 +256,8 @@ check_ratelimit() {
   return 1
 }
 st_operate() {
+  # Deploy bỏ qua vì không đổi mã/hạ tầng (vd. chỉ sửa tài liệu) -> không có bản mới nào để kiểm khi vận hành
+  [ "$DEPLOY_SKIPPED" = 1 ] && { skip Operate "Operate" "không triển khai lần này"; return; }
   gate Operate "Conftest — runtime.rego (docker inspect)" runtime_compliance
   gate Operate "Proxy phục vụ ứng dụng (/ → 200)" check_app
   gate Operate "F03 — /metrics bị chặn (404)" check_metrics
@@ -274,9 +278,16 @@ prom_rule_loaded() {
   local r; r=$(curl -s "$PROM_URL/api/v1/rules"); echo "$r" | grep -o '"name":"HighClientErrorRate"[^}]*"state":"[a-z]*"' || true
   echo "$r" | grep -q '"name":"HighClientErrorRate"'
 }
+prom_ready() { curl -sf "$PROM_URL/-/ready" >/dev/null 2>&1; }
 st_monitor() {
-  if ! curl -sf "$PROM_URL/-/ready" >/dev/null 2>&1; then
-    skip Monitor "Prometheus + cảnh báo" "chưa chạy: docker compose -f docker-compose.monitoring.yml up -d"; return
+  [ "$DEPLOY_SKIPPED" = 1 ] && { skip Monitor "Monitor" "không triển khai lần này"; return; }
+  if ! prom_ready; then   # stack giám sát chưa chạy -> tự bật (gắn vào mạng backend của juice-app)
+    echo "  Bật stack giám sát: docker compose -f docker-compose.monitoring.yml up -d"
+    docker compose -f docker-compose.monitoring.yml up -d >"$OUT/monitoring-up.log" 2>&1
+    local i; for i in $(seq 1 12); do prom_ready && break; sleep 5; done
+  fi
+  if ! prom_ready; then
+    skip Monitor "Prometheus + cảnh báo" "không bật được stack giám sát — xem $OUT/monitoring-up.log"; return
   fi
   gate Monitor "Prometheus scrape /metrics nội bộ (UP)" prom_target_up
   gate Monitor "Luật cảnh báo HighClientErrorRate" prom_rule_loaded

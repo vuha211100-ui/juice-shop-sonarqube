@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Dọn sau buổi demo tích hợp DevSecOps (devsecops/DEMO.md) — đưa repo về trạng thái sạch:
-#   1. trả lại các tệp demo đã sửa (routes/login.ts, docker-compose.yml, deploy/Dockerfile.hotfix)
+#   1. trả lại các tệp demo đã sửa (routes/login.ts, routes/fileServer.ts, docker-compose.yml, deploy/…)
 #   2. về nhánh main, xóa nhánh demo fix/demo-ci (local + GitHub) và các lần chạy Actions của nó
 #   3. gỡ tag image ứng viên juice-shop:ci-*, xóa log .devsecops/
-#   4. kiểm tra lại: tệp sạch, main == remote, image triển khai còn, stack 3102 đang chạy
+#   4. triển khai lại cấu hình của main lên 3102 (demo push có thể để lại proxy mở /metrics, container root)
+#   5. kiểm tra lại: tệp sạch, main == remote, image triển khai còn, stack 3102 đang chạy
 # Dùng (Git Bash, tại gốc repo):  bash devsecops/demo-cleanup.sh        (hỏi xác nhận trước khi trả tệp)
 #                                 bash devsecops/demo-cleanup.sh -y     (không hỏi)
 # Chỉ đụng tới những thứ demo tạo ra; các thay đổi chưa commit khác (vd report/) được giữ nguyên.
@@ -13,7 +14,7 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 
 REMOTE=${REMOTE:-github}
 DEMO_BRANCH=fix/demo-ci
-DEMO_FILES=(routes/login.ts docker-compose.yml deploy/Dockerfile.hotfix)
+DEMO_FILES=(routes/login.ts routes/fileServer.ts docker-compose.yml deploy/Dockerfile.hotfix deploy/nginx.conf)
 IMAGE=juice-shop:hotfix-f01-f02
 YES=0; [ "${1:-}" = "-y" ] && YES=1
 ok() { echo "  ✓ $*"; }
@@ -75,7 +76,12 @@ if [ -n "$tags" ]; then
 else ok "không còn image ứng viên juice-shop:ci-*"; fi
 rm -rf .devsecops && ok "đã xóa .devsecops/ (log, dấu pass của pre-push)"
 
-echo "══ 4. Kiểm tra lại ══"
+echo "══ 4. Triển khai lại cấu hình của main ══"
+if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  docker compose up -d --no-build --wait --wait-timeout 240 >/dev/null 2>&1 && docker compose restart proxy >/dev/null 2>&1     && ok "stack 3102 chạy lại theo docker-compose.yml + deploy/nginx.conf của main" || bad "triển khai lại không thành công — xem docker compose ps"
+else info "thiếu $IMAGE — bỏ qua triển khai lại"; fi
+
+echo "══ 5. Kiểm tra lại ══"
 [ -z "$(git status --porcelain -- "${DEMO_FILES[@]}")" ] && ok "tệp demo sạch" || bad "tệp demo vẫn còn thay đổi"
 [ "$(git rev-parse --abbrev-ref HEAD)" = main ] && ok "đang ở main" || info "đang ở $(git rev-parse --abbrev-ref HEAD)"
 if git rev-parse -q --verify "refs/remotes/$REMOTE/main" >/dev/null; then

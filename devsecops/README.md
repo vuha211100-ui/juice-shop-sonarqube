@@ -11,7 +11,7 @@ Toàn bộ logic nằm trong **một script**, `devsecops/pipeline.sh`. Ba nơi 
 | Điểm kích hoạt | Khi nào | Chạy những pha nào |
 |---|---|---|
 | `.githooks/pre-commit` | `git commit` | Code + các cổng tĩnh của Build/Deploy (`--staged --quick`), khoảng 20–60 giây |
-| `.githooks/pre-push` | `git push` | Code → Build → Test → Release → Deploy (chỉ kiểm chính sách), trên các commit sắp đẩy |
+| `.githooks/pre-push` | `git push` | Cả 7 pha trên các commit sắp đẩy: triển khai thật lên 3102 rồi kiểm tra Operate/Monitor (tự bật stack giám sát nếu chưa chạy), khoảng 2 phút |
 | `.github/workflows/devsecops.yml` | push lên `main`, `fix/**`, `tv-*`; pull request vào `main` | Cả 7 pha, có triển khai thật trên runner rồi kiểm tra Operate/Monitor |
 
 Hook có thể bị bỏ qua bằng `--no-verify`. Vì vậy cổng bắt buộc cuối cùng là workflow trên GitHub: hãy đặt branch protection cho `main` để yêu cầu job **DevSecOps pipeline** phải đạt.
@@ -34,9 +34,9 @@ Hook có thể bị bỏ qua bằng `--no-verify`. Vì vậy cổng bắt buộc
 | Deploy | `docker compose up --wait` | Triển khai | Container không lên hoặc không healthy |
 | Operate | Conftest `runtime.rego` trên `docker inspect` | Compliance as Code | Container đang chạy là root, thiếu `cap_drop: ALL` hay `no-new-privileges`, không giới hạn CPU/PID, hoặc backend có cổng host |
 | Operate | Kiểm tra qua proxy 3102 | Kiểm chứng hành vi | `/` ≠ 200, `/metrics` ≠ 404, thiếu header `nosniff`/`no-referrer`, đăng nhập dồn dập mà không nhận 429 |
-| Monitor | Prometheus | Giám sát | Target `juice-shop` không UP, hoặc chưa nạp luật `HighClientErrorRate`. Bỏ qua (SKIP) nếu stack giám sát chưa chạy |
+| Monitor | Prometheus | Giám sát | Target `juice-shop` không UP, hoặc chưa nạp luật `HighClientErrorRate`. Stack giám sát chưa chạy thì tự bật; không bật được thì bỏ qua (SKIP) |
 
-**Lọc theo loại thay đổi:** sửa tài liệu (`report/`…) thì chỉ chạy pha Code. Sửa mã ứng dụng hoặc hạ tầng thì chạy đủ các pha. Thêm `--full` để luôn chạy hết.
+**Lọc theo loại thay đổi:** sửa tài liệu (`report/`…) thì chỉ chạy pha Code; Deploy không triển khai nên Operate/Monitor cũng bỏ qua. Sửa mã ứng dụng hoặc hạ tầng thì chạy đủ các pha. Thêm `--full` để luôn chạy hết.
 **Dừng sớm:** pha nào FAIL thì các pha sau bị SKIP. Riêng `--quick` (pre-commit) chạy hết các cổng tĩnh, để thấy mọi lỗi trong một lần.
 
 ## Cài đặt (mỗi thành viên, một lần sau khi clone)
@@ -57,9 +57,8 @@ git switch -c fix/<mô-tả> main   # Plan: mỗi lỗi một nhánh
 # ... sửa mã, thêm ca kiểm thử vào test/api/security/ (đỏ trước khi vá, xanh sau khi vá)
 git add -p
 git commit -m "fix: ..."         # pre-commit: Gitleaks + Semgrep + Conftest
-git push -u github fix/<mô-tả>   # pre-push: Code → Build → Test → Release → Deploy (chính sách)
+git push -u github fix/<mô-tả>   # pre-push: đủ 7 pha, triển khai lên 3102 và kiểm tra vận hành
 # mở pull request vào main → GitHub Actions chạy đủ 7 pha → đạt thì merge
-bash devsecops/pipeline.sh deploy operate monitor   # triển khai bản đã phát hành lên 3102 và kiểm tra
 ```
 
 Khi đã đạt, pre-push ghi dấu theo SHA (`.devsecops/pass-<sha>`). Nhờ đó đẩy cùng commit lên nhánh thứ hai (ví dụ `main` rồi `fix/f01-f04`) không phải chạy lại.
